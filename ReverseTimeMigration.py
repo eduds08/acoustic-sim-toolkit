@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow, save_imshow_4_subplots
-from os_utils import clear_folder, create_ffmpeg_animation
+from os_utils import clear_folder
 
 
 class ReverseTimeMigration(WebGPUConfig):
@@ -18,6 +18,8 @@ class ReverseTimeMigration(WebGPUConfig):
         os.makedirs(self.folder, exist_ok=True)
         os.makedirs(self.last_frame_rtm_folder, exist_ok=True)
         os.makedirs(self.animation_folder, exist_ok=True)
+
+        clear_folder(self.last_frame_rtm_folder)
 
         self.tr_sim_folder = './TimeReversal'
         self.tr_last_frames_folder = f'{self.tr_sim_folder}/last_frames'
@@ -45,7 +47,6 @@ class ReverseTimeMigration(WebGPUConfig):
                 self.grid_size_x,
                 self.source_z,
                 self.source_x,
-                self.number_of_reflectors,
                 0,
             ],
             dtype=np.int32
@@ -57,12 +58,14 @@ class ReverseTimeMigration(WebGPUConfig):
                 self.dx,
                 self.dt,
                 self.c,
-                self.reflector_c,
             ],
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool):
+    def run(self, create_animation: bool, plt_kwargs=None):
+        if plt_kwargs is None:
+            plt_kwargs = {}
+
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
         shader_file.close()
@@ -72,28 +75,31 @@ class ReverseTimeMigration(WebGPUConfig):
         wgsl_data = {
             'infoI32': self.info_int,
             'infoF32': self.info_float,
-            'receptor_z': self.receptor_z,
-            'receptor_x': self.receptor_x,
+            'source': self.source,
             'p_future': self.p_future,
             'p_present': self.p_present,
             'p_past': self.p_past,
             'lap': self.lap,
+            'p_future_reversed_tr': self.p_future_reversed_tr,
+            'p_present_reversed_tr': self.p_present_reversed_tr,
+            'p_past_reversed_tr': self.p_past_reversed_tr,
+            'lap_reversed_tr': self.lap_reversed_tr,
         }
-
-        for i in range(self.number_of_receptors):
-            wgsl_data[f'reversed_pressure_{i}'] = self.reversed_pressure[i]
 
         shader_lines = list(shader_string.split('\n'))
         buffers = self.create_buffers(wgsl_data, shader_lines)
 
         compute_lap = self.create_compute_pipeline("laplacian_5_operator")
+        compute_sim_reversed_tr = self.create_compute_pipeline("sim_reversed_tr")
         compute_sim = self.create_compute_pipeline("sim")
         compute_incr = self.create_compute_pipeline("incr_time")
 
         if create_animation:
             clear_folder(self.animation_folder)
 
-        for i in range(self.tr_total_time):
+        accumulated_product = np.zeros_like(self.p_future)
+
+        for i in range(self.rtm_total_time):
             command_encoder = self.device.create_command_encoder()
             compute_pass = command_encoder.begin_compute_pass()
 
@@ -101,6 +107,10 @@ class ReverseTimeMigration(WebGPUConfig):
                 compute_pass.set_bind_group(index, bind_group, [], 0, 999999)
 
             compute_pass.set_pipeline(compute_lap)
+            compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
+                                             self.grid_size_x // self.wsx)
+
+            compute_pass.set_pipeline(compute_sim_reversed_tr)
             compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
                                              self.grid_size_x // self.wsx)
 
@@ -115,33 +125,36 @@ class ReverseTimeMigration(WebGPUConfig):
             self.device.queue.submit([command_encoder.finish()])
 
             """ READ BUFFERS """
-            self.p_future = (np.asarray(self.device.queue.read_buffer(buffers['b4']).cast("f"))
+            self.p_future = (np.asarray(self.device.queue.read_buffer(buffers['b3']).cast("f"))
                              .reshape(self.grid_size_shape))
 
-            if i == self.tr_total_time - 1 or i == self.tr_total_time - 2:
-                np.save(f'{self.last_frames_folder}/tr_{i}', self.p_future)
+            self.p_future_reversed_tr = (np.asarray(self.device.queue.read_buffer(buffers['b7']).cast("f"))
+                                         .reshape(self.grid_size_shape))
+
+            current_product = self.p_future * self.p_future_reversed_tr
+            accumulated_product += current_product
+
+            if i == self.rtm_total_time - 1:
+                save_imshow(
+                    data=accumulated_product,
+                    title=f'RTM - Last Frame',
+                    path=f'{self.last_frame_rtm_folder}/plot_{i}.png',
+                    scatter_kwargs={},
+                    plt_kwargs=plt_kwargs,
+                    plt_grid=False,
+                    plt_colorbar=True,
+                )
+                np.save(f'{self.last_frame_rtm_folder}/frame_{i}.npy', accumulated_product)
 
             if i % self.animation_step == 0:
                 if create_animation:
-                    save_imshow(
-                        data=self.p_future,
-                        title=f'Time Reversal',
+                    save_imshow_4_subplots(
+                        nw_kwargs={'data': self.p_future_reversed_tr, 'title': 'Up-going wavefields', 'plt_grid': True},
+                        ne_kwargs={'data': current_product, 'title': 'Product (Down * Up)', 'plt_grid': False},
+                        sw_kwargs={'data': self.p_future, 'title': 'Down-going wavefields', 'plt_grid': True},
+                        se_kwargs={'data': accumulated_product, 'title': 'Accumulated product', 'plt_grid': False},
                         path=f'{self.animation_folder}/plot_{i}.png',
-                        scatter_kwargs={
-                            'number_of_receptors': self.number_of_receptors,
-                            'receptor_z': self.receptor_z,
-                            'receptor_x': self.receptor_x,
-                        },
-                        plt_kwargs={
-                            # 'vmax': 1e-3,
-                            # 'vmin': -1e-3,
-                        },
-                        plt_grid=True,
-                        plt_colorbar=True,
                     )
-                print(f'Time Reversal - i={i}')
+                print(f'Reverse Time Migration - i={i}')
 
-        print('Time Reversal finished.')
-
-        if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'tr.mkv', self.tr_total_time, self.animation_step)
+        print('Reverse Time Migration finished.')

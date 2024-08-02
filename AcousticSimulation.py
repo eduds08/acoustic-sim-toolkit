@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
-from os_utils import clear_folder, create_ffmpeg_animation
+from os_utils import clear_folder
 
 
 class AcousticSimulation(WebGPUConfig):
@@ -104,7 +104,10 @@ class AcousticSimulation(WebGPUConfig):
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool):
+    def run(self, create_animation: bool, plt_kwargs=None):
+        if plt_kwargs is None:
+            plt_kwargs = {}
+
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
         shader_file.close()
@@ -176,10 +179,7 @@ class AcousticSimulation(WebGPUConfig):
                             'receptor_z': self.receptor_z,
                             'receptor_x': self.receptor_x,
                         },
-                        plt_kwargs={
-                            # 'vmax': 1e-3,
-                            # 'vmin': -1e-3,
-                        },
+                        plt_kwargs=plt_kwargs,
                         plt_grid=True,
                         plt_colorbar=True,
                     )
@@ -189,6 +189,3 @@ class AcousticSimulation(WebGPUConfig):
 
         for j in range(self.number_of_receptors):
             np.save(f'{self.recorded_pressure_folder}/receptor_{j}.npy', self.recs[j])
-
-        if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'ac_sim.mkv', self.total_time, self.animation_step)

@@ -24,13 +24,13 @@ var<storage,read> infoF32: InfoFloat;
 @group(0) @binding(2) // source term
 var<storage,read> source: array<f32>;
 
-@group(0) @binding(3) // pressure field present
+@group(0) @binding(3) // pressure field future
 var<storage,read_write> p_future: array<f32>;
 
-@group(0) @binding(4) // pressure field past
+@group(0) @binding(4) // pressure field present
 var<storage,read_write> p_present: array<f32>;
 
-@group(0) @binding(5) // pressure field future
+@group(0) @binding(5) // pressure field past
 var<storage,read_write> p_past: array<f32>;
 
 @group(0) @binding(6) // laplacian matrix

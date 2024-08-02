@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
-from os_utils import clear_folder, create_ffmpeg_animation
+from os_utils import clear_folder
 
 
 class TimeReversal(WebGPUConfig):
@@ -19,6 +19,9 @@ class TimeReversal(WebGPUConfig):
 
         os.makedirs(self.folder, exist_ok=True)
         os.makedirs(self.last_frames_folder, exist_ok=True)
+
+        clear_folder(self.folder)
+        clear_folder(self.last_frames_folder)
 
         self.ac_sim_folder = './AcousticSimulation'
         self.ac_receptors_folder = f'{self.ac_sim_folder}/receptors_setup'
@@ -79,7 +82,10 @@ class TimeReversal(WebGPUConfig):
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool):
+    def run(self, create_animation: bool, plt_kwargs=None):
+        if plt_kwargs is None:
+            plt_kwargs = {}
+
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
 
@@ -178,16 +184,10 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
                         title=f'Time Reversal',
                         path=f'{self.animation_folder}/plot_{i}.png',
                         scatter_kwargs=scatter_kwargs,
-                        plt_kwargs={
-                            # 'vmax': 1e-3,
-                            # 'vmin': -1e-3,
-                        },
+                        plt_kwargs=plt_kwargs,
                         plt_grid=True,
                         plt_colorbar=True,
                     )
                 print(f'Time Reversal - i={i}')
 
         print('Time Reversal finished.')
-
-        if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'tr.mkv', self.tr_total_time, self.animation_step)

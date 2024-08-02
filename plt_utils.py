@@ -31,15 +31,23 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
 
     axs[0, 0].imshow(nw_kwargs['data'])
     axs[0, 0].set_title(nw_kwargs['title'])
+    if nw_kwargs['plt_grid']:
+        axs[0, 0].grid()
 
     axs[0, 1].imshow(ne_kwargs['data'])
     axs[0, 1].set_title(ne_kwargs['title'])
+    if ne_kwargs['plt_grid']:
+        axs[0, 1].grid()
 
     axs[1, 0].imshow(sw_kwargs['data'])
     axs[1, 0].set_title(sw_kwargs['title'])
+    if sw_kwargs['plt_grid']:
+        axs[1, 0].grid()
 
     axs[1, 1].imshow(se_kwargs['data'])
     axs[1, 1].set_title(se_kwargs['title'])
+    if se_kwargs['plt_grid']:
+        axs[1, 1].grid()
 
     plt.tight_layout()
 
