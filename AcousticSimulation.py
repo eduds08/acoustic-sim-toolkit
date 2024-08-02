@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
-from os_utils import clear_folder
+from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class AcousticSimulation(WebGPUConfig):
@@ -183,9 +183,14 @@ class AcousticSimulation(WebGPUConfig):
                         plt_grid=True,
                         plt_colorbar=True,
                     )
+
+            if i % 100 == 0:
                 print(f'Acoustic Simulation - i={i}')
 
         print('Acoustic Simulation finished.')
 
         for j in range(self.number_of_receptors):
             np.save(f'{self.recorded_pressure_folder}/receptor_{j}.npy', self.recs[j])
+
+        if create_animation:
+            create_ffmpeg_animation(self.animation_folder, 'ac_sim.mp4', self.total_time, self.animation_step)

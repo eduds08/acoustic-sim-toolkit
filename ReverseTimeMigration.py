@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow, save_imshow_4_subplots
-from os_utils import clear_folder
+from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class ReverseTimeMigration(WebGPUConfig):
@@ -155,6 +155,11 @@ class ReverseTimeMigration(WebGPUConfig):
                         se_kwargs={'data': accumulated_product, 'title': 'Accumulated product', 'plt_grid': False},
                         path=f'{self.animation_folder}/plot_{i}.png',
                     )
+
+            if i % 100 == 0:
                 print(f'Reverse Time Migration - i={i}')
 
         print('Reverse Time Migration finished.')
+
+        if create_animation:
+            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.total_time, self.animation_step)

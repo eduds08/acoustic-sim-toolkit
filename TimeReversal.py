@@ -2,7 +2,7 @@ import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
-from os_utils import clear_folder
+from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class TimeReversal(WebGPUConfig):
@@ -188,6 +188,11 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
                         plt_grid=True,
                         plt_colorbar=True,
                     )
+
+            if i % 100 == 0:
                 print(f'Time Reversal - i={i}')
 
         print('Time Reversal finished.')
+
+        if create_animation:
+            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.total_time, self.animation_step)
