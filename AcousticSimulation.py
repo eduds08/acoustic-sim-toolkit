@@ -41,6 +41,10 @@ class AcousticSimulation(WebGPUConfig):
 
         # Reflectors setup
         if acoustic_config['mode'] == 'no_reflector':
+            self.number_of_reflectors = np.int32(0)
+            self.reflector_c = np.float32(0.)
+            self.reflector_z = np.array([0], dtype=np.int32)
+            self.reflector_x = np.array([0], dtype=np.int32)
             self.has_reflector = False
         else:
             self.has_reflector = True

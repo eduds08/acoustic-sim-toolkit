@@ -16,7 +16,7 @@ simulation_config = {
 ac_config = {
     'source_z': 1000,
     'source_x': 2000,
-    'mode': 'linear_reflector',  # 'no_reflector', 'punctual_reflector', 'linear_reflector'
+    'mode': 'no_reflector',  # 'no_reflector', 'punctual_reflector', 'linear_reflector'
     'number_of_reflectors': 500,  # Ignore if 'mode' == 'punctual_reflector' or 'mode' == 'no_reflector'
     'reflector_z': [2200 + i for i in range(500)],  # Ignore if 'mode' == 'no_reflector'
     'reflector_x': [2600 for _ in range(500)],  # Ignore if 'mode' == 'no_reflector'
