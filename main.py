@@ -9,27 +9,27 @@ simulation_config = {
     'dx': 3,
     'grid_size_z': 4000,
     'grid_size_x': 4000,
-    'total_time': 1000,
+    'total_time': 4300,
     'animation_step': 100,
 }
 
 ac_config = {
-    'source_z': 750,
+    'source_z': 1000,
     'source_x': 2000,
     'mode': 'linear_reflector',  # 'no_reflector', 'punctual_reflector', 'linear_reflector'
-    'number_of_reflectors': 1,  # Ignore if 'mode' == 'punctual_reflector' or 'mode' == 'no_reflector'
-    'reflector_z': [1200],  # Ignore if 'mode' == 'no_reflector'
-    'reflector_x': [2600],  # Ignore if 'mode' == 'no_reflector'
+    'number_of_reflectors': 500,  # Ignore if 'mode' == 'punctual_reflector' or 'mode' == 'no_reflector'
+    'reflector_z': [2200 + i for i in range(500)],  # Ignore if 'mode' == 'no_reflector'
+    'reflector_x': [2600 for _ in range(500)],  # Ignore if 'mode' == 'no_reflector'
     'reflector_c': 0,
-    'number_of_receptors': 3,
-    'receptor_z': [250, 500, 750],
-    'receptor_x': [2000, 2000, 2000],
+    'number_of_receptors': 7,
+    'receptor_z': [250 + 1000, 500 + 1000, 750 + 1000, 1000 + 1000, 1250 + 1000, 1500 + 1000, 1750 + 1000],
+    'receptor_x': [2000 for _ in range(7)],
 }
 
 tr_config = {
-    'min_time': 300,
-    'max_time': 800,
-    'padding_zeros': 500,
+    'min_time': 0,
+    'max_time': 4300,
+    'padding_zeros': 0,
 }
 
 simulation_modes = {
@@ -39,13 +39,14 @@ simulation_modes = {
     3: 'TimeReversal + ReverseTimeMigration',
 }
 
-mode = 0
+mode = 1
 
 if simulation_modes[mode] == 'AcousticSimulation':
     ac_sim = AcousticSimulation(simulation_config, ac_config)
     ac_sim.run(create_animation=True)
 elif simulation_modes[mode] == 'TimeReversal':
     tr_sim = TimeReversal(simulation_config, tr_config)
+    tr_sim.run(create_animation=True)
 elif simulation_modes[mode] == 'ReverseTimeMigration':
     rtm_sim = ReverseTimeMigration(**simulation_config)
 elif simulation_modes[mode] == 'TimeReversal + ReverseTimeMigration':

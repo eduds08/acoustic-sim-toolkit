@@ -83,9 +83,9 @@ fn sim(@builtin(global_invocation_id) index: vec3<u32>) {
 
     if (has_reflector == 1)
     {
-        for (var reflector_pos: i32 = 0; reflector_pos < infoI32.number_of_reflectors; reflector_pos += 1)
+        for (var reflector_idx: i32 = 0; reflector_idx < infoI32.number_of_reflectors; reflector_idx += 1)
         {
-            if (z == reflector_z[reflector_pos] && x == reflector_x[reflector_pos])
+            if (z == reflector_z[reflector_idx] && x == reflector_x[reflector_idx])
             {
                 p_future[zx(z, x)] = (infoF32.reflector_c * infoF32.reflector_c) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
                 on_reflector = true;

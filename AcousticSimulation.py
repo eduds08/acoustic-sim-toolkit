@@ -17,17 +17,20 @@ class AcousticSimulation(WebGPUConfig):
         self.source_folder = f'{self.folder}/source_setup'
         self.receptors_folder = f'{self.folder}/receptors_setup'
         self.recorded_pressure_folder = f'{self.folder}/recorded_pressure'
+        self.reflectors_folder = f'{self.folder}/reflectors_setup'
         self.animation_folder = f'{self.folder}/animation'
 
         os.makedirs(self.folder, exist_ok=True)
         os.makedirs(self.source_folder, exist_ok=True)
         os.makedirs(self.receptors_folder, exist_ok=True)
         os.makedirs(self.recorded_pressure_folder, exist_ok=True)
+        os.makedirs(self.reflectors_folder, exist_ok=True)
         os.makedirs(self.animation_folder, exist_ok=True)
 
         clear_folder(self.source_folder)
         clear_folder(self.receptors_folder)
         clear_folder(self.recorded_pressure_folder)
+        clear_folder(self.reflectors_folder)
 
         # Source position
         self.source_z = np.int32(acoustic_config['source_z'])
@@ -39,17 +42,18 @@ class AcousticSimulation(WebGPUConfig):
         # Reflectors setup
         if acoustic_config['mode'] == 'no_reflector':
             self.has_reflector = False
-        elif acoustic_config['mode'] == 'punctual_reflector':
+        else:
             self.has_reflector = True
-            self.reflector_z = np.int32(acoustic_config['reflector_z'])
-            self.reflector_x = np.int32(acoustic_config['reflector_x'])
             self.reflector_c = np.float32(acoustic_config['reflector_c'])
-        elif acoustic_config['mode'] == 'linear_reflector':
-            self.has_reflector = True
-            self.number_of_reflectors = np.int32(acoustic_config['number_of_reflectors'])
             self.reflector_z = np.array(acoustic_config['reflector_z'], dtype=np.int32)
             self.reflector_x = np.array(acoustic_config['reflector_x'], dtype=np.int32)
-            self.reflector_c = np.float32(acoustic_config['reflector_c'])
+            if acoustic_config['mode'] == 'punctual_reflector':
+                self.number_of_reflectors = np.int32(1)
+            elif acoustic_config['mode'] == 'linear_reflector':
+                self.number_of_reflectors = np.int32(acoustic_config['number_of_reflectors'])
+            np.save(f'{self.reflectors_folder}/number_of_reflectors.npy', self.number_of_reflectors)
+            np.save(f'{self.reflectors_folder}/reflector_z.npy', self.reflector_z)
+            np.save(f'{self.reflectors_folder}/reflector_x.npy', self.reflector_x)
 
         # Receptors setup
         self.number_of_receptors = np.int32(acoustic_config['number_of_receptors'])
