@@ -29,22 +29,22 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
 
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
-    axs[0, 0].imshow(nw_kwargs['data'])
+    axs[0, 0].imshow(nw_kwargs['data'], vmax=1e3, vmin=-1e3)
     axs[0, 0].set_title(nw_kwargs['title'])
     if nw_kwargs['plt_grid']:
         axs[0, 0].grid()
 
-    axs[0, 1].imshow(ne_kwargs['data'])
+    axs[0, 1].imshow(ne_kwargs['data'], vmax=1e4, vmin=-1e4)
     axs[0, 1].set_title(ne_kwargs['title'])
     if ne_kwargs['plt_grid']:
         axs[0, 1].grid()
 
-    axs[1, 0].imshow(sw_kwargs['data'])
+    axs[1, 0].imshow(sw_kwargs['data'], vmax=5e1, vmin=-5e1)
     axs[1, 0].set_title(sw_kwargs['title'])
     if sw_kwargs['plt_grid']:
         axs[1, 0].grid()
 
-    axs[1, 1].imshow(se_kwargs['data'])
+    axs[1, 1].imshow(se_kwargs['data'], vmax=1e5, vmin=-1e5)
     axs[1, 1].set_title(se_kwargs['title'])
     if se_kwargs['plt_grid']:
         axs[1, 1].grid()
@@ -52,4 +52,19 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
     plt.tight_layout()
 
     plt.savefig(path)
+    plt.close(fig)
+
+
+def plot_imshow(data):
+    fig = plt.figure()
+    plt.imshow(data, aspect='auto')
+    plt.grid()
+    plt.show()
+    plt.close(fig)
+
+
+def normal_plot(data):
+    fig = plt.figure()
+    plt.plot(data)
+    plt.show()
     plt.close(fig)

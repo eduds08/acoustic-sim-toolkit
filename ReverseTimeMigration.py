@@ -1,7 +1,7 @@
 import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
-from plt_utils import save_imshow, save_imshow_4_subplots
+from plt_utils import save_imshow, save_imshow_4_subplots, normal_plot
 from os_utils import clear_folder, create_ffmpeg_animation
 
 
@@ -24,17 +24,25 @@ class ReverseTimeMigration(WebGPUConfig):
         self.tr_sim_folder = './TimeReversal'
         self.tr_last_frames_folder = f'{self.tr_sim_folder}/last_frames'
 
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_source_folder = f'{self.ac_sim_folder}/source_setup'
-
         self.rtm_total_time = np.load(f'{self.tr_sim_folder}/tr_total_time.npy')
 
         print(f'Total time (RTM): {self.rtm_total_time}')
 
+        # Receptors setup
+        receptor_z = []
+        for rp in range(0, 64):
+            receptor_z.append((6.0e-4 * rp) / simulation_config['dz'])
+
+        self.number_of_receptors = np.int32(64)
+        self.receptor_z = (np.int32(np.asarray(receptor_z)) + np.int32((simulation_config['grid_size_z']
+                                                                        - receptor_z[-1]) / 2))
+        self.receptor_x = np.array([2000 for _ in range(64)])
+
         # Source setup
-        self.source_z = np.load(f'{self.ac_source_folder}/source_z.npy')
-        self.source_x = np.load(f'{self.ac_source_folder}/source_x.npy')
-        self.source = np.load(f'{self.ac_source_folder}/source.npy')
+        self.source_z = np.int32(self.receptor_z[32])
+        self.source_x = np.int32(self.receptor_x[32])
+        self.source = np.float32(np.load('./panther/source.npy') * np.float32(32768.))
+        self.source = self.source[:self.rtm_total_time]
 
         self.p_future_reversed_tr = np.zeros(self.grid_size_shape, dtype=np.float32)
         self.p_present_reversed_tr = np.load(f'{self.tr_last_frames_folder}/tr_{self.rtm_total_time - 2}.npy')
@@ -162,4 +170,4 @@ class ReverseTimeMigration(WebGPUConfig):
         print('Reverse Time Migration finished.')
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.rtm_total_time, self.animation_step)

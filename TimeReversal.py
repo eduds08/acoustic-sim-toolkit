@@ -1,15 +1,13 @@
 import numpy as np
 import os
 from WebGPUConfig import WebGPUConfig
-from plt_utils import save_imshow
+from plt_utils import save_imshow, plot_imshow
 from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class TimeReversal(WebGPUConfig):
-    def __init__(self, simulation_config, tr_config):
+    def __init__(self, simulation_config):
         super().__init__(**simulation_config)
-
-        tr_config = {**tr_config}
 
         self.shader_file = './time_reversal.wgsl'
 
@@ -19,48 +17,57 @@ class TimeReversal(WebGPUConfig):
 
         os.makedirs(self.folder, exist_ok=True)
         os.makedirs(self.last_frames_folder, exist_ok=True)
+        os.makedirs(self.animation_folder, exist_ok=True)
 
         clear_folder(self.folder)
         clear_folder(self.last_frames_folder)
 
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_receptors_folder = f'{self.ac_sim_folder}/receptors_setup'
-        self.ac_recorded_pressure_folder = f'{self.ac_sim_folder}/recorded_pressure'
-        self.ac_reflectors_folder = f'{self.ac_sim_folder}/reflectors_setup'
+        # Receptors setup
+        receptor_z = []
+        for rp in range(0, 64):
+            receptor_z.append((6.0e-4 * rp) / simulation_config['dz'])
+
+        self.number_of_receptors = np.int32(64)
+        self.receptor_z = np.int32(np.int32(np.asarray(receptor_z)) + np.int32((simulation_config['grid_size_z']
+                                                                                - receptor_z[-1]) / 2))
+        self.receptor_x = np.array([2000 for _ in range(64)], dtype=np.int32)
 
         # Reflectors setup
-        if len(os.listdir(f'{self.ac_reflectors_folder}')) != 0:
-            self.number_of_reflectors = np.load(f'{self.ac_reflectors_folder}/number_of_reflectors.npy')
-            self.reflector_z = np.load(f'{self.ac_reflectors_folder}/reflector_z.npy')
-            self.reflector_x = np.load(f'{self.ac_reflectors_folder}/reflector_x.npy')
+        self.number_of_reflectors = np.int32(5)
+        self.reflector_z = self.receptor_z[np.asarray([0, 10, 32, 54, 63])]
+        self.reflector_x = np.int32(np.asarray([4.139e-2, 4.592e-2, 5.796e-2, 6.995e-2, 7.500e-2]) / self.dx)
 
-        # Receptors setup
-        self.number_of_receptors = np.load(f'{self.ac_receptors_folder}/number_of_receptors.npy')
-        self.receptor_z = np.load(f'{self.ac_receptors_folder}/receptor_z.npy')
-        self.receptor_x = np.load(f'{self.ac_receptors_folder}/receptor_x.npy')
+        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 0, :, 0].transpose()
+        raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 32, :, 0].transpose()
+        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 54, :, 0].transpose()
 
-        self.min_time = np.int32(tr_config['min_time'])
-        self.max_time = np.int32(tr_config['max_time'])
-        self.padding_zeros = np.int32(tr_config['padding_zeros'])
+        # Mic 0:
+        # raw_b_scan[:, :1100] = np.float32(0)
+        # raw_b_scan[:, 1645:] = np.float32(0)
+        # # Mic 32:
+        raw_b_scan[:29, 1800:] = np.float32(0)
+        raw_b_scan[:, 2740:] = np.float32(0)
+        # # Mic 54:
+        # raw_b_scan[:50, 2300:] = np.float32(0)
+        # raw_b_scan[:, 2690:] = np.float32(0)
 
-        self.tr_total_time = np.int32(self.padding_zeros + (self.max_time - self.min_time))
+        # plot_imshow(np.abs(raw_b_scan))
+
+        zeros = np.zeros((64, 2000))
+        raw_b_scan = np.hstack((zeros, raw_b_scan))
+
+        simulation_b_scan = raw_b_scan[:, :]
+
+        # plot_imshow(simulation_b_scan)
+
+        self.tr_total_time = np.int32(len(simulation_b_scan[0]))
         np.save(f'{self.folder}/tr_total_time.npy', self.tr_total_time)
-
         print(f'Total time (TR): {self.tr_total_time}')
 
         self.reversed_pressure = []
-
         # Recorded pressure on receptors
         for i in range(self.number_of_receptors):
-            recorded_pressure = np.load(
-                f'{self.ac_recorded_pressure_folder}/receptor_{i}.npy'
-            )[self.min_time:self.max_time]
-
-            flipped_recorded_pressure = np.array(np.flip(recorded_pressure), dtype=np.float32)
-
-            padded_recorded_pressure = np.pad(flipped_recorded_pressure, (0, self.padding_zeros), mode='constant')
-
-            self.reversed_pressure.append(padded_recorded_pressure)
+            self.reversed_pressure.append(np.array(np.flip(simulation_b_scan[i]), dtype=np.float32))
 
         self.info_int = np.array(
             [
@@ -133,21 +140,14 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
         if create_animation:
             clear_folder(self.animation_folder)
 
-        if len(os.listdir(f'{self.ac_reflectors_folder}')) != 0:
-            scatter_kwargs = {
-                'number_of_reflectors': self.number_of_reflectors,
-                'reflector_z': self.reflector_z,
-                'reflector_x': self.reflector_x,
-                'number_of_receptors': self.number_of_receptors,
-                'receptor_z': self.receptor_z,
-                'receptor_x': self.receptor_x,
-            }
-        else:
-            scatter_kwargs = {
-                'number_of_receptors': self.number_of_receptors,
-                'receptor_z': self.receptor_z,
-                'receptor_x': self.receptor_x,
-            }
+        scatter_kwargs = {
+            'number_of_reflectors': self.number_of_reflectors,
+            'reflector_z': self.reflector_z,
+            'reflector_x': self.reflector_x + np.int32(2000),
+            'number_of_receptors': self.number_of_receptors,
+            'receptor_z': self.receptor_z,
+            'receptor_x': self.receptor_x,
+        }
 
         for i in range(self.tr_total_time):
             command_encoder = self.device.create_command_encoder()
@@ -195,4 +195,4 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
         print('Time Reversal finished.')
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.tr_total_time, self.animation_step)
