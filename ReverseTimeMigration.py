@@ -162,4 +162,4 @@ class ReverseTimeMigration(WebGPUConfig):
         print('Reverse Time Migration finished.')
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.rtm_total_time, self.animation_step)

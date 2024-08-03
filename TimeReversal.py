@@ -195,4 +195,4 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
         print('Time Reversal finished.')
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.tr_total_time, self.animation_step)
