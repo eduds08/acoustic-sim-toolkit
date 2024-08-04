@@ -37,28 +37,21 @@ class TimeReversal(WebGPUConfig):
         self.reflector_z = self.receptor_z[np.asarray([0, 10, 32, 54, 63])]
         self.reflector_x = np.int32(np.asarray([4.139e-2, 4.592e-2, 5.796e-2, 6.995e-2, 7.500e-2]) / self.dx)
 
-        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 0, :, 0].transpose()
-        raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 32, :, 0].transpose()
+        raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 0, :, 0].transpose()
+        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 32, :, 0].transpose()
         # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 54, :, 0].transpose()
-
-        # Mic 0:
-        # raw_b_scan[:, :1100] = np.float32(0)
-        # raw_b_scan[:, 1645:] = np.float32(0)
-        # # Mic 32:
-        raw_b_scan[:29, 1800:] = np.float32(0)
-        raw_b_scan[:, 2740:] = np.float32(0)
-        # # Mic 54:
-        # raw_b_scan[:50, 2300:] = np.float32(0)
-        # raw_b_scan[:, 2690:] = np.float32(0)
 
         # plot_imshow(np.abs(raw_b_scan))
 
-        zeros = np.zeros((64, 2000))
+        zeros = np.zeros((64, 625))
         raw_b_scan = np.hstack((zeros, raw_b_scan))
 
         simulation_b_scan = raw_b_scan[:, :]
 
-        # plot_imshow(simulation_b_scan)
+        # simulation_b_scan[:, 3250:] = np.float32(0)
+        simulation_b_scan[:, 2300:] = np.float32(0)
+
+        plot_imshow(np.abs(simulation_b_scan))
 
         self.tr_total_time = np.int32(len(simulation_b_scan[0]))
         np.save(f'{self.folder}/tr_total_time.npy', self.tr_total_time)

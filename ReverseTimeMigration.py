@@ -38,11 +38,21 @@ class ReverseTimeMigration(WebGPUConfig):
                                                                         - receptor_z[-1]) / 2))
         self.receptor_x = np.array([2000 for _ in range(64)])
 
+        # Reflectors setup
+        self.number_of_reflectors = np.int32(5)
+        self.reflector_z = self.receptor_z[np.asarray([0, 10, 32, 54, 63])]
+        self.reflector_x = np.int32(np.asarray([4.139e-2, 4.592e-2, 5.796e-2, 6.995e-2, 7.500e-2]) / self.dx)
+
         # Source setup
-        self.source_z = np.int32(self.receptor_z[32])
-        self.source_x = np.int32(self.receptor_x[32])
-        self.source = np.float32(np.load('./panther/source.npy') * np.float32(32768.))
+        self.source_z = np.int32(self.receptor_z[0])
+        self.source_x = np.int32(self.receptor_x[0])
+        self.source = np.float32(np.load('./panther/source.npy'))
+
+        # zeros = np.zeros((450, 1), dtype=np.float32)
+        # self.source = np.concatenate((zeros, self.source), axis=0)
         self.source = self.source[:self.rtm_total_time]
+
+        normal_plot(self.source)
 
         self.p_future_reversed_tr = np.zeros(self.grid_size_shape, dtype=np.float32)
         self.p_present_reversed_tr = np.load(f'{self.tr_last_frames_folder}/tr_{self.rtm_total_time - 2}.npy')
@@ -105,6 +115,12 @@ class ReverseTimeMigration(WebGPUConfig):
         if create_animation:
             clear_folder(self.animation_folder)
 
+        scatter_kwargs = {
+            'number_of_reflectors': self.number_of_reflectors,
+            'reflector_z': self.reflector_z,
+            'reflector_x': self.reflector_x + np.int32(2000),
+        }
+
         accumulated_product = np.zeros_like(self.p_future)
 
         for i in range(self.rtm_total_time):
@@ -142,12 +158,12 @@ class ReverseTimeMigration(WebGPUConfig):
             current_product = self.p_future * self.p_future_reversed_tr
             accumulated_product += current_product
 
-            if i == self.rtm_total_time - 1:
+            if i == self.rtm_total_time - 1 or i == 2100:
                 save_imshow(
                     data=accumulated_product,
                     title=f'RTM - Last Frame',
                     path=f'{self.last_frame_rtm_folder}/plot_{i}.png',
-                    scatter_kwargs={},
+                    scatter_kwargs=scatter_kwargs,
                     plt_kwargs=plt_kwargs,
                     plt_grid=False,
                     plt_colorbar=True,

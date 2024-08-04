@@ -10,10 +10,10 @@ def save_imshow(data, title, path, scatter_kwargs, plt_kwargs, plt_grid=True, pl
         plt.colorbar()
     if scatter_kwargs.get('number_of_reflectors') is not None:
         for i in range(scatter_kwargs['number_of_reflectors']):
-            plt.scatter(scatter_kwargs['reflector_x'][i], scatter_kwargs['reflector_z'][i], s=2, color='red')
+            plt.scatter(scatter_kwargs['reflector_x'][i], scatter_kwargs['reflector_z'][i], s=1, color='red')
     if scatter_kwargs.get('number_of_receptors') is not None:
         for i in range(scatter_kwargs['number_of_receptors']):
-            plt.scatter(scatter_kwargs['receptor_x'][i], scatter_kwargs['receptor_z'][i], s=2, color='red')
+            plt.scatter(scatter_kwargs['receptor_x'][i], scatter_kwargs['receptor_z'][i], s=1, color='red')
     plt.title(title)
     if plt_grid:
         plt.grid()
@@ -44,7 +44,7 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
     if sw_kwargs['plt_grid']:
         axs[1, 0].grid()
 
-    axs[1, 1].imshow(se_kwargs['data'], vmax=1e5, vmin=-1e5)
+    axs[1, 1].imshow(se_kwargs['data'], vmax=6e3, vmin=-6e3)
     axs[1, 1].set_title(se_kwargs['title'])
     if se_kwargs['plt_grid']:
         axs[1, 1].grid()
@@ -58,6 +58,19 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
 def plot_imshow(data):
     fig = plt.figure()
     plt.imshow(data, aspect='auto')
+    plt.grid()
+    plt.show()
+    plt.close(fig)
+
+
+def plot_imshow_2(data, scatter_kwargs, **plt_kwargs):
+    scatter_kwargs = {**scatter_kwargs}
+
+    fig = plt.figure()
+    plt.imshow(data, **plt_kwargs)
+    if scatter_kwargs.get('number_of_reflectors') is not None:
+        for i in range(scatter_kwargs['number_of_reflectors']):
+            plt.scatter(scatter_kwargs['reflector_x'][i], scatter_kwargs['reflector_z'][i], s=1, color='red')
     plt.grid()
     plt.show()
     plt.close(fig)
