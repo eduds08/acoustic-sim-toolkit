@@ -6,7 +6,7 @@ from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class ReverseTimeMigration(WebGPUConfig):
-    def __init__(self, **simulation_config):
+    def __init__(self, current_rec, **simulation_config):
         super().__init__(**simulation_config)
 
         self.shader_file = './reverse_time_migration.wgsl'
@@ -39,20 +39,18 @@ class ReverseTimeMigration(WebGPUConfig):
         self.receptor_x = np.array([2000 for _ in range(64)])
 
         # Reflectors setup
-        self.number_of_reflectors = np.int32(5)
-        self.reflector_z = self.receptor_z[np.asarray([0, 10, 32, 54, 63])]
-        self.reflector_x = np.int32(np.asarray([4.139e-2, 4.592e-2, 5.796e-2, 6.995e-2, 7.500e-2]) / self.dx)
+        self.number_of_reflectors = np.int32(1)
+        self.reflector_z = np.array([1713], dtype=np.int32)
+        self.reflector_x = np.array([403], dtype=np.int32)
 
         # Source setup
-        self.source_z = np.int32(self.receptor_z[0])
-        self.source_x = np.int32(self.receptor_x[0])
+        self.current_rec = current_rec
+
+        self.source_z = np.int32(self.receptor_z[self.current_rec])
+        self.source_x = np.int32(self.receptor_x[self.current_rec])
+
         self.source = np.float32(np.load('./panther/source.npy'))
-
-        # zeros = np.zeros((450, 1), dtype=np.float32)
-        # self.source = np.concatenate((zeros, self.source), axis=0)
         self.source = self.source[:self.rtm_total_time]
-
-        normal_plot(self.source)
 
         self.p_future_reversed_tr = np.zeros(self.grid_size_shape, dtype=np.float32)
         self.p_present_reversed_tr = np.load(f'{self.tr_last_frames_folder}/tr_{self.rtm_total_time - 2}.npy')
@@ -158,20 +156,11 @@ class ReverseTimeMigration(WebGPUConfig):
             current_product = self.p_future * self.p_future_reversed_tr
             accumulated_product += current_product
 
-            if i == self.rtm_total_time - 1 or i == 2100:
-                save_imshow(
-                    data=accumulated_product,
-                    title=f'RTM - Last Frame',
-                    path=f'{self.last_frame_rtm_folder}/plot_{i}.png',
-                    scatter_kwargs=scatter_kwargs,
-                    plt_kwargs=plt_kwargs,
-                    plt_grid=False,
-                    plt_colorbar=True,
-                )
-                np.save(f'{self.last_frame_rtm_folder}/frame_{i}.npy', accumulated_product)
+            if i % 1000 == 0 or i == self.rtm_total_time - 1:
+                np.save(f'{self.last_frame_rtm_folder}/frame_{i}_{self.current_rec}.npy', accumulated_product)
 
-            if i % self.animation_step == 0:
-                if create_animation:
+            if create_animation:
+                if i % self.animation_step == 0:
                     save_imshow_4_subplots(
                         nw_kwargs={'data': self.p_future_reversed_tr, 'title': 'Up-going wavefields', 'plt_grid': True},
                         ne_kwargs={'data': current_product, 'title': 'Product (Down * Up)', 'plt_grid': False},

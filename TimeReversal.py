@@ -6,7 +6,7 @@ from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class TimeReversal(WebGPUConfig):
-    def __init__(self, simulation_config):
+    def __init__(self, current_rec, **simulation_config):
         super().__init__(**simulation_config)
 
         self.shader_file = './time_reversal.wgsl'
@@ -33,25 +33,16 @@ class TimeReversal(WebGPUConfig):
         self.receptor_x = np.array([2000 for _ in range(64)], dtype=np.int32)
 
         # Reflectors setup
-        self.number_of_reflectors = np.int32(5)
-        self.reflector_z = self.receptor_z[np.asarray([0, 10, 32, 54, 63])]
-        self.reflector_x = np.int32(np.asarray([4.139e-2, 4.592e-2, 5.796e-2, 6.995e-2, 7.500e-2]) / self.dx)
+        self.number_of_reflectors = np.int32(1)
+        self.reflector_z = np.array([1713], dtype=np.int32)
+        self.reflector_x = np.array([403], dtype=np.int32)
 
-        raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 0, :, 0].transpose()
-        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 32, :, 0].transpose()
-        # raw_b_scan = np.load('./panther/teste_3/ascan_data.npy')[:, 54, :, 0].transpose()
+        simulation_b_scan = np.load(f'./panther/teste_6/ascan_data.npy')[:, current_rec, :, 0].transpose()
 
-        # plot_imshow(np.abs(raw_b_scan))
+        zeros = np.zeros((64, 500))
+        simulation_b_scan = np.hstack((zeros, simulation_b_scan))
 
-        zeros = np.zeros((64, 625))
-        raw_b_scan = np.hstack((zeros, raw_b_scan))
-
-        simulation_b_scan = raw_b_scan[:, :]
-
-        # simulation_b_scan[:, 3250:] = np.float32(0)
-        simulation_b_scan[:, 2300:] = np.float32(0)
-
-        plot_imshow(np.abs(simulation_b_scan))
+        simulation_b_scan = simulation_b_scan
 
         self.tr_total_time = np.int32(len(simulation_b_scan[0]))
         np.save(f'{self.folder}/tr_total_time.npy', self.tr_total_time)
@@ -170,8 +161,8 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
             if i == self.tr_total_time - 1 or i == self.tr_total_time - 2:
                 np.save(f'{self.last_frames_folder}/tr_{i}', self.p_future)
 
-            if i % self.animation_step == 0:
-                if create_animation:
+            if create_animation:
+                if i % self.animation_step == 0:
                     save_imshow(
                         data=self.p_future,
                         title=f'Time Reversal',

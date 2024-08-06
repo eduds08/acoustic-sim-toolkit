@@ -34,17 +34,17 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path):
     if nw_kwargs['plt_grid']:
         axs[0, 0].grid()
 
-    axs[0, 1].imshow(ne_kwargs['data'], vmax=1e4, vmin=-1e4)
+    axs[0, 1].imshow(ne_kwargs['data'], vmax=1e-2, vmin=-1e-2)
     axs[0, 1].set_title(ne_kwargs['title'])
     if ne_kwargs['plt_grid']:
         axs[0, 1].grid()
 
-    axs[1, 0].imshow(sw_kwargs['data'], vmax=5e1, vmin=-5e1)
+    axs[1, 0].imshow(sw_kwargs['data'], vmax=1e-3, vmin=-1e-3)
     axs[1, 0].set_title(sw_kwargs['title'])
     if sw_kwargs['plt_grid']:
         axs[1, 0].grid()
 
-    axs[1, 1].imshow(se_kwargs['data'], vmax=6e3, vmin=-6e3)
+    axs[1, 1].imshow(se_kwargs['data'], vmax=1e1, vmin=-1e1)
     axs[1, 1].set_title(se_kwargs['title'])
     if se_kwargs['plt_grid']:
         axs[1, 1].grid()
