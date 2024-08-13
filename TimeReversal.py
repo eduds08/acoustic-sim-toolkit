@@ -30,16 +30,19 @@ class TimeReversal(WebGPUConfig):
         self.number_of_receptors = np.int32(64)
         self.receptor_z = np.int32(np.int32(np.asarray(receptor_z)) + np.int32((simulation_config['grid_size_z']
                                                                                 - receptor_z[-1]) / 2))
-        self.receptor_x = np.array([2000 for _ in range(64)], dtype=np.int32)
+        self.receptor_x = np.array([1 for _ in range(64)], dtype=np.int32)
 
         # Reflectors setup
         self.number_of_reflectors = np.int32(1)
-        self.reflector_z = np.array([1713], dtype=np.int32)
-        self.reflector_x = np.array([403], dtype=np.int32)
+        # self.reflector_z = np.array([1713], dtype=np.int32)
+        # self.reflector_x = np.array([403], dtype=np.int32)
 
-        simulation_b_scan = np.load(f'./panther/teste_6/ascan_data.npy')[:, current_rec, :, 0].transpose()
+        self.reflector_x = np.array([3.414e-2 / self.dx + 1], dtype=np.int32)  # test_dist = 3.414e-2
+        self.reflector_z = np.array([self.receptor_z[current_rec]], dtype=np.int32)
 
-        zeros = np.zeros((64, 500))
+        simulation_b_scan = np.load(f'./teste1_results/ascan_data.npy')[:, current_rec, :, 0].transpose()
+
+        zeros = np.zeros((64, 3750))
         simulation_b_scan = np.hstack((zeros, simulation_b_scan))
 
         simulation_b_scan = simulation_b_scan
@@ -127,7 +130,7 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
         scatter_kwargs = {
             'number_of_reflectors': self.number_of_reflectors,
             'reflector_z': self.reflector_z,
-            'reflector_x': self.reflector_x + np.int32(2000),
+            'reflector_x': self.reflector_x,
             'number_of_receptors': self.number_of_receptors,
             'receptor_z': self.receptor_z,
             'receptor_x': self.receptor_x,
