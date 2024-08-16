@@ -103,12 +103,12 @@ simulation_modes = {
     0: 'TimeReversal',
     1: 'ReverseTimeMigration',
     2: 'TimeReversal + ReverseTimeMigration',
-    3: 'Plot last RTM frame',
-    4: 'Plot l2-norm TR',
-    5: 'TFM',
+    3: 'TFM',
+    4: 'Plot last RTM frame',
+    5: 'Plot l2-norm TR',
 }
 
-mode = 5
+mode = 3
 
 if simulation_modes[mode] == 'TimeReversal':
     tr_sim = TimeReversal(simulation_config, tr_config)
@@ -124,6 +124,10 @@ elif simulation_modes[mode] == 'TimeReversal + ReverseTimeMigration':
 
     rtm_sim = ReverseTimeMigration(simulation_config, rtm_config)
     rtm_sim.run(create_animation=True)
+
+elif simulation_modes[mode] == 'TFM':
+    tfm = TFM(selected_test)
+    tfm.run()
 
 elif simulation_modes[mode] == 'Plot last RTM frame':
     tr_sim_folder = './TimeReversal'
@@ -193,7 +197,3 @@ elif simulation_modes[mode] == 'Plot l2-norm TR':
         interpolation='nearest',
         cmap='bwr',
     )
-
-elif simulation_modes[mode] == 'TFM':
-    tfm = TFM(selected_test)
-    tfm.run()
