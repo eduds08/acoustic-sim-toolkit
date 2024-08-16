@@ -9,7 +9,6 @@ struct InfoFloat {
     dz: f32,
     dx: f32,
     dt: f32,
-    c: f32,
 };
 
 @group(0) @binding(0)
@@ -35,6 +34,9 @@ var<storage,read_write> p_past: array<f32>;
 
 @group(0) @binding(7) // Laplacian
 var<storage,read_write> lap: array<f32>;
+
+@group(0) @binding(8) // velocity map
+var<storage,read> c: array<f32>;
 
 //REVERSED_PRESSURE_BINDINGS
 
@@ -72,7 +74,7 @@ fn sim(@builtin(global_invocation_id) index: vec3<u32>) {
     let z: i32 = i32(index.x);
     let x: i32 = i32(index.y);
 
-    p_future[zx(z, x)] = (infoF32.c * infoF32.c) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
+    p_future[zx(z, x)] = (c[zx(z, x)] * c[zx(z, x)]) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
 
     p_future[zx(z, x)] += ((2. * p_present[zx(z, x)]) - p_past[zx(z, x)]);
 

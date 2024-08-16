@@ -28,8 +28,8 @@ class SimulationConfig:
 
         print(f'Total time: {self.total_time}')
 
-        print(f'CFL-Z: {self.c * (self.dt / self.dz)}')
-        print(f'CFL-X: {self.c * (self.dt / self.dx)}')
+        print(f'CFL-Z (np.amax(c)): {np.amax(self.c) * (self.dt / self.dz)}')
+        print(f'CFL-X (np.amax(c)): {np.amax(self.c) * (self.dt / self.dx)}')
 
         print(f'Grid Size (px): ({self.grid_size_z}, {self.grid_size_x})')
 

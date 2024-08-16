@@ -3,7 +3,6 @@ struct InfoInt {
     grid_size_x: i32,
     source_z: i32,
     source_x: i32,
-    number_of_reflectors: i32,
     i: i32,
 };
 
@@ -11,8 +10,6 @@ struct InfoFloat {
     dz: f32,
     dx: f32,
     dt: f32,
-    c: f32,
-    reflector_c: f32,
 };
 
 @group(0) @binding(0) // Info Int
@@ -36,14 +33,8 @@ var<storage,read_write> p_past: array<f32>;
 @group(0) @binding(6) // laplacian matrix
 var<storage,read_write> lap: array<f32>;
 
-@group(0) @binding(7) // has reflector?
-var<storage,read> has_reflector: u32;
-
-@group(0) @binding(8) // reflector position Z
-var<storage,read> reflector_z: array<i32>;
-
-@group(0) @binding(9) // reflector position X
-var<storage,read> reflector_x: array<i32>;
+@group(0) @binding(7) // velocity map
+var<storage,read> c: array<f32>;
 
 // 2D index to 1D index
 fn zx(z: i32, x: i32) -> i32 {
@@ -79,23 +70,7 @@ fn sim(@builtin(global_invocation_id) index: vec3<u32>) {
     let z: i32 = i32(index.x);
     let x: i32 = i32(index.y);
 
-    var on_reflector: bool = false;
-
-    if (has_reflector == 1)
-    {
-        for (var reflector_idx: i32 = 0; reflector_idx < infoI32.number_of_reflectors; reflector_idx += 1)
-        {
-            if (z == reflector_z[reflector_idx] && x == reflector_x[reflector_idx])
-            {
-                p_future[zx(z, x)] = (infoF32.reflector_c * infoF32.reflector_c) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
-                on_reflector = true;
-            }
-        }
-    }
-    if (has_reflector == 0 || on_reflector == false)
-    {
-        p_future[zx(z, x)] = (infoF32.c * infoF32.c) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
-    }
+    p_future[zx(z, x)] = (c[zx(z, x)] * c[zx(z, x)]) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
 
     p_future[zx(z, x)] += ((2. * p_present[zx(z, x)]) - p_past[zx(z, x)]);
 

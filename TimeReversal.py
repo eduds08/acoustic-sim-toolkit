@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
 from os_utils import clear_folder, create_ffmpeg_animation
@@ -13,20 +14,7 @@ class TimeReversal(WebGPUConfig):
 
         self.shader_file = './time_reversal.wgsl'
 
-        self.folder = './TimeReversal'
-        self.last_frames_folder = f'{self.folder}/last_frames'
-        self.animation_folder = f'{self.folder}/animation'
-
-        os.makedirs(self.folder, exist_ok=True)
-        os.makedirs(self.last_frames_folder, exist_ok=True)
-
-        clear_folder(self.folder)
-        clear_folder(self.last_frames_folder)
-
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_receptors_folder = f'{self.ac_sim_folder}/receptors_setup'
-        self.ac_recorded_pressure_folder = f'{self.ac_sim_folder}/recorded_pressure'
-        self.ac_reflectors_folder = f'{self.ac_sim_folder}/reflectors_setup'
+        self.setup_folders()
 
         # Reflectors setup
         if len(os.listdir(f'{self.ac_reflectors_folder}')) != 0:
@@ -39,22 +27,30 @@ class TimeReversal(WebGPUConfig):
         self.receptor_z = np.load(f'{self.ac_receptors_folder}/receptor_z.npy')
         self.receptor_x = np.load(f'{self.ac_receptors_folder}/receptor_x.npy')
 
+        # Slice
         self.min_time = np.int32(tr_config['min_time'])
         self.max_time = np.int32(tr_config['max_time'])
         self.padding_zeros = np.int32(tr_config['padding_zeros'])
 
+        # Total time
         self.tr_total_time = np.int32(self.padding_zeros + (self.max_time - self.min_time))
         np.save(f'{self.folder}/tr_total_time.npy', self.tr_total_time)
-
         print(f'Total time (TR): {self.tr_total_time}')
 
+        # Recorded pressure on receptors
         self.reversed_pressure = []
 
-        # Recorded pressure on receptors
+        source = np.load(f'{self.ac_sim_folder}/source_setup/source.npy')
+        source_index = ~np.isclose(source, 0)
+
         for i in range(self.number_of_receptors):
             recorded_pressure = np.load(
                 f'{self.ac_recorded_pressure_folder}/receptor_{i}.npy'
             )[self.min_time:self.max_time]
+
+            # Cut the recorded source (when receptor on x=2)
+            if self.receptor_x[0] == 2:
+                recorded_pressure[~np.isclose(source_index, 0)] = np.float32(0)
 
             flipped_recorded_pressure = np.array(np.flip(recorded_pressure), dtype=np.float32)
 
@@ -77,21 +73,19 @@ class TimeReversal(WebGPUConfig):
                 self.dz,
                 self.dx,
                 self.dt,
-                self.c,
             ],
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool, plt_kwargs=None):
-        if plt_kwargs is None:
-            plt_kwargs = {}
-
+    def run(self, create_animation: bool, **plt_kwargs):
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
 
+        last_binding = 8
+
         aux_string = ''
         for i in range(self.number_of_receptors):
-            aux_string += f'''@group(0) @binding({i + 8})
+            aux_string += f'''@group(0) @binding({i + (last_binding + 1)})
 var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
 
         shader_string = shader_string.replace('//REVERSED_PRESSURE_BINDINGS', aux_string)
@@ -118,6 +112,7 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
             'p_present': self.p_present,
             'p_past': self.p_past,
             'lap': self.lap,
+            'c': self.c,
         }
 
         for i in range(self.number_of_receptors):
@@ -174,6 +169,7 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
             self.p_future = (np.asarray(self.device.queue.read_buffer(buffers['b4']).cast("f"))
                              .reshape(self.grid_size_shape))
 
+            # Save last 2 frames (for RTM)
             if i == self.tr_total_time - 1 or i == self.tr_total_time - 2:
                 np.save(f'{self.last_frames_folder}/tr_{i}', self.p_future)
 
@@ -184,9 +180,7 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
                         title=f'Time Reversal',
                         path=f'{self.animation_folder}/plot_{i}.png',
                         scatter_kwargs=scatter_kwargs,
-                        plt_kwargs=plt_kwargs,
-                        plt_grid=True,
-                        plt_colorbar=True,
+                        **plt_kwargs,
                     )
 
             if i % 100 == 0:
@@ -196,3 +190,20 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
 
         if create_animation:
             create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.tr_total_time, self.animation_step)
+
+    def setup_folders(self):
+        self.folder = './TimeReversal'
+        self.last_frames_folder = f'{self.folder}/last_frames'
+        self.animation_folder = f'{self.folder}/animation'
+
+        os.makedirs(self.folder, exist_ok=True)
+        os.makedirs(self.last_frames_folder, exist_ok=True)
+        os.makedirs(self.animation_folder, exist_ok=True)
+
+        clear_folder(self.folder)
+        clear_folder(self.last_frames_folder)
+
+        self.ac_sim_folder = './AcousticSimulation'
+        self.ac_receptors_folder = f'{self.ac_sim_folder}/receptors_setup'
+        self.ac_recorded_pressure_folder = f'{self.ac_sim_folder}/recorded_pressure'
+        self.ac_reflectors_folder = f'{self.ac_sim_folder}/reflectors_setup'

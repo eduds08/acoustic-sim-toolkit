@@ -10,7 +10,6 @@ struct InfoFloat {
     dz: f32,
     dx: f32,
     dt: f32,
-    c: f32,
 };
 
 @group(0) @binding(0) // Info Int
@@ -45,6 +44,9 @@ var<storage,read_write> p_past_reversed_tr: array<f32>;
 
 @group(0) @binding(10) // rtr lap
 var<storage,read_write> lap_reversed_tr: array<f32>;
+
+@group(0) @binding(11) // velocity map
+var<storage,read> c: array<f32>;
 
 // 2D index to 1D index
 fn zx(z: i32, x: i32) -> i32 {
@@ -94,7 +96,7 @@ fn sim_reversed_tr(@builtin(global_invocation_id) index: vec3<u32>) {
     let z: i32 = i32(index.x);
     let x: i32 = i32(index.y);
 
-    p_future_reversed_tr[zx(z, x)] = (infoF32.c * infoF32.c) * lap_reversed_tr[zx(z, x)] * (infoF32.dt * infoF32.dt);
+    p_future_reversed_tr[zx(z, x)] = (c[zx(z, x)] * c[zx(z, x)]) * lap_reversed_tr[zx(z, x)] * (infoF32.dt * infoF32.dt);
 
     p_future_reversed_tr[zx(z, x)] += ((2. * p_present_reversed_tr[zx(z, x)]) - p_past_reversed_tr[zx(z, x)]);
 
@@ -108,7 +110,7 @@ fn sim(@builtin(global_invocation_id) index: vec3<u32>) {
     let z: i32 = i32(index.x);
     let x: i32 = i32(index.y);
 
-    p_future[zx(z, x)] = (infoF32.c * infoF32.c) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
+    p_future[zx(z, x)] = (c[zx(z, x)] * c[zx(z, x)]) * lap[zx(z, x)] * (infoF32.dt * infoF32.dt);
 
     p_future[zx(z, x)] += ((2. * p_present[zx(z, x)]) - p_past[zx(z, x)]);
 

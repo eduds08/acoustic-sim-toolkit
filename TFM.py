@@ -1,169 +1,231 @@
 import numpy as np
-import os
-from WebGPUConfig import WebGPUConfig
-from plt_utils import save_imshow
-from os_utils import clear_folder
+import matplotlib.pyplot as plt
+import wgpu
+from webgpu_utils import read_shader_bindings
+
+pipeline_layout = None
+bind_groups = None
+
+# GPU device
+device = wgpu.utils.get_default_device()
 
 
-class TFM(WebGPUConfig):
-    def __init__(self, **simulation_config):
-        super().__init__(**simulation_config)
+def create_compute_pipeline(entry_point):
+    """
+    Creates a compute pipeline.
 
-        self.shader_file = './tfm.wgsl'
+    Arguments:
+        entry_point (str): @compute function's name declared in wgsl file.
 
-        self.folder = './TFM'
+    Returns:
+        GPUComputePipeline.
+    """
+    return device.create_compute_pipeline(
+        layout=pipeline_layout,
+        compute={"module": shader_module, "entry_point": entry_point}
+    )
 
-        os.makedirs(self.folder, exist_ok=True)
 
-        clear_folder(self.folder)
+def create_buffers(data, shader_lines):
+    """
+    Creates a dictionary containing all created buffers.
 
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_receptors_folder = f'{self.ac_sim_folder}/receptors_setup'
-        self.ac_recorded_pressure_folder = f'{self.ac_sim_folder}/recorded_pressure'
-        self.ac_reflectors_folder = f'{self.ac_sim_folder}/reflectors_setup'
+    Arguments:
+        data (dict): Dictionary containing any object supporting the Python buffer protocol.
+                     It's the data that will be passed to bindings on gpu.
+        shader_lines (list): List of strings where each element is a line of a wgsl file.
 
-        # Reflectors setup
-        if len(os.listdir(f'{self.ac_reflectors_folder}')) != 0:
-            self.number_of_reflectors = np.load(f'{self.ac_reflectors_folder}/number_of_reflectors.npy')
-            self.reflector_z = np.load(f'{self.ac_reflectors_folder}/reflector_z.npy')
-            self.reflector_x = np.load(f'{self.ac_reflectors_folder}/reflector_x.npy')
+    Returns:
+        dict: Dictionary containing all created buffers. The key is a string named as 'b0', 'b1', etc...
+              where 'b0' is @binding(0), for example. The value is a GPUBuffer.
+    """
+    buffers = dict()
+    bind_groups_layouts_entries = dict()
+    bind_groups_entries = dict()
 
-        # Receptors setup
-        self.number_of_receptors = np.load(f'{self.ac_receptors_folder}/number_of_receptors.npy')
-        self.receptor_z = np.load(f'{self.ac_receptors_folder}/receptor_z.npy')
-        self.receptor_x = np.load(f'{self.ac_receptors_folder}/receptor_x.npy')
+    shader_bindings = read_shader_bindings(shader_lines)
 
-        self.recorded_pressure = []
+    for group, binding_list in shader_bindings.items():
+        for binding, data_and_binding_type in binding_list.items():
+            buffer_binding_type = wgpu.BufferBindingType.read_only_storage if data_and_binding_type[1] == 'read' \
+                else wgpu.BufferBindingType.storage
 
-        # Recorded pressure on receptors
-        for i in range(self.number_of_receptors):
-            recorded_pressure = np.array(np.load(
-                f'{self.ac_recorded_pressure_folder}/receptor_{i}.npy'
-            ), dtype=np.float32)
+            if f'{group}' not in bind_groups_layouts_entries:
+                bind_groups_layouts_entries[f'{group}'] = list()
 
-            self.recorded_pressure.append(recorded_pressure)
+            if f'{group}' not in bind_groups_entries:
+                bind_groups_entries[f'{group}'] = list()
 
-        self.info_int = np.array(
-            [
-                self.grid_size_z,
-                self.grid_size_x,
-                self.number_of_receptors,
-                0,
-            ],
-            dtype=np.int32
-        )
+            buffers[f'b{binding}'] = create_buffer(data[data_and_binding_type[0]], binding,
+                                                        buffer_binding_type,
+                                                        bind_groups_layouts_entries[f'{group}'],
+                                                        bind_groups_entries[f'{group}'])
 
-        self.info_float = np.array(
-            [
-                self.dz,
-                self.dx,
-                self.dt,
-                self.c,
-            ],
-            dtype=np.float32
-        )
+    bind_groups_layouts_entries = dict(sorted(bind_groups_layouts_entries.items()))
+    bind_groups_entries = dict(sorted(bind_groups_entries.items()))
 
-    def run(self, plt_kwargs=None):
-        if plt_kwargs is None:
-            plt_kwargs = {}
+    bind_groups_layouts_entries_list = [v for k, v in bind_groups_layouts_entries.items()]
+    bind_groups_entries_list = [v for k, v in bind_groups_entries.items()]
 
-        shader_file = open(self.shader_file)
-        shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
+    create_pipeline_layout(bind_groups_layouts_entries_list, bind_groups_entries_list)
 
-        aux_string = ''
-        for i in range(self.number_of_receptors):
-            aux_string += f'''@group(0) @binding({i + 8})
-var<storage,read> recorded_pressure_{i}: array<f32>;\n\n'''
+    return buffers
 
-        shader_string = shader_string.replace('//RECORDED_PRESSURE_BINDINGS', aux_string)
 
-        aux_string = ''
-        for i in range(self.number_of_receptors):
-            aux_string += f'''if (receptor_idx == {i})
-            {{
-                p_future[zx(z, x)] += recorded_pressure_{i}[infoI32.i];
-            }}\n'''
+def create_buffer(
+        data,
+        binding_number,
+        buffer_binding_type,
+        bind_groups_layouts_entries: list,
+        bind_groups_entries: list
+):
+    """
+    Creates a buffer using create_buffer_with_data() and also appends a dictionary with the passed arguments into
+    bind_groups_layouts_entries and into bind_groups_entries. (Those two lists are passed by reference).
 
-        shader_string = shader_string.replace('//RECORDED_PRESSURE_SIM', aux_string)
+    Arguments:
+        data (dict): Dictionary containing any object supporting the Python buffer protocol.
+                     It's the data that will be passed to bindings on gpu.
+        binding_number (int): The number 'x' specified in @binding(x).
+        buffer_binding_type (enum): WebGPU binding type (read, read_only, etc...).
+        bind_groups_layouts_entries (list): Passed by reference. An element of this list is a dict with parameters
+                                            that will help to build the bind_group_layout.
+        bind_groups_entries (list): Passed by reference. An element of this list is a dict with parameters that will
+                                    help to build the bind_group.
 
-        shader_file.close()
+    Returns:
+        GPUBuffer object: Buffer created with create_buffer_with_data().
+    """
+    print(binding_number)
+    new_buffer = device.create_buffer_with_data(data=data, usage=wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_SRC)
 
-        self.shader_module = self.device.create_shader_module(code=shader_string)
-
-        wgsl_data = {
-            'infoI32': self.info_int,
-            'infoF32': self.info_float,
-            'receptor_z': self.receptor_z,
-            'receptor_x': self.receptor_x,
-            'p_future': self.p_future,
-            'p_present': self.p_present,
-            'p_past': self.p_past,
-            'lap': self.lap,
+    bind_groups_layouts_entries.append({
+        'binding': binding_number,
+        'visibility': wgpu.ShaderStage.COMPUTE,
+        'buffer': {
+            "type": buffer_binding_type,
         }
+    })
 
-        for i in range(self.number_of_receptors):
-            wgsl_data[f'recorded_pressure_{i}'] = self.recorded_pressure[i]
+    bind_groups_entries.append({
+        "binding": binding_number,
+        "resource": {
+            "buffer": new_buffer,
+            "offset": 0,
+            "size": new_buffer.size,
+        }
+    })
 
-        shader_lines = list(shader_string.split('\n'))
-        buffers = self.create_buffers(wgsl_data, shader_lines)
+    return new_buffer
 
-        compute_lap = self.create_compute_pipeline("laplacian_5_operator")
-        compute_sim = self.create_compute_pipeline("sim")
-        compute_incr = self.create_compute_pipeline("incr_time")
 
-        # if len(os.listdir(f'{self.ac_reflectors_folder}')) != 0:
-        #     scatter_kwargs = {
-        #         'number_of_reflectors': self.number_of_reflectors,
-        #         'reflector_z': self.reflector_z,
-        #         'reflector_x': self.reflector_x,
-        #         'number_of_receptors': self.number_of_receptors,
-        #         'receptor_z': self.receptor_z,
-        #         'receptor_x': self.receptor_x,
-        #     }
-        # else:
-        #     scatter_kwargs = {
-        #         'number_of_receptors': self.number_of_receptors,
-        #         'receptor_z': self.receptor_z,
-        #         'receptor_x': self.receptor_x,
-        #     }
+def create_pipeline_layout(bind_groups_layouts_entries: list, bind_groups_entries: list):
+    """
+    Creates bind_group_layouts and bind_groups from the arguments to create a pipeline_layout. Sets the class'
+    pipeline layout and bind_groups.
 
-        for i in range(self.total_time):
-            command_encoder = self.device.create_command_encoder()
-            compute_pass = command_encoder.begin_compute_pass()
+    Arguments:
+        bind_groups_layouts_entries (list): An element of this list is a dict with parameters that will help
+                                            to build the bind_group_layout.
+        bind_groups_entries (list): An element of this list is a dict with parameters that will help
+                                    to build the bind_group.
+    """
+    global bind_groups, pipeline_layout
 
-            for index, bind_group in enumerate(self.bind_groups):
-                compute_pass.set_bind_group(index, bind_group, [], 0, 999999)
+    bind_groups_layouts = []
+    for bind_group_layout_entries in bind_groups_layouts_entries:
+        bind_groups_layouts.append(device.create_bind_group_layout(entries=bind_group_layout_entries))
 
-            compute_pass.set_pipeline(compute_lap)
-            compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
-                                             self.grid_size_x // self.wsx)
+    pipeline_layout = device.create_pipeline_layout(bind_group_layouts=bind_groups_layouts)
 
-            compute_pass.set_pipeline(compute_sim)
-            compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
-                                             self.grid_size_x // self.wsx)
+    bind_groups = []
+    for index, bind_group_entries in enumerate(bind_groups_entries):
+        bind_groups.append(device.create_bind_group(layout=bind_groups_layouts[index],
+                                                         entries=bind_group_entries))
 
-            compute_pass.set_pipeline(compute_incr)
-            compute_pass.dispatch_workgroups(1)
+    bind_groups = bind_groups
 
-            compute_pass.end()
-            self.device.queue.submit([command_encoder.finish()])
 
-            """ READ BUFFERS """
-            self.p_future = (np.asarray(self.device.queue.read_buffer(buffers['b4']).cast("f"))
-                             .reshape(self.grid_size_shape))
+fmc = np.load('teste4_results/ascan_data.npy')[:, :, :, 0]
+fmc = np.array(fmc[:1700, :, :], dtype=np.float32)
 
-            # if create_animation:
-            #     save_imshow(
-            #         data=self.p_future,
-            #         title=f'TFM',
-            #         path=f'{self.animation_folder}/plot_{i}.png',
-            #         scatter_kwargs=scatter_kwargs,
-            #         plt_kwargs=plt_kwargs,
-            #         plt_grid=True,
-            #         plt_colorbar=True,
-            #     )
+image = np.zeros_like((fmc[:, :, 0]), dtype=np.float32)
 
-            if i % 100 == 0:
-                print(f'TFM - i={i}')
+wsReceptor = None
+for i in range(15, 0, -1):
+    if (len(fmc[0, 0, :]) % i) == 0:
+        wsReceptor = i
+        break
 
-        print('TFM finished.')
+wsDepth = None
+for i in range(15, 0, -1):
+    if (len(image[:, 0]) % i) == 0:
+        wsDepth = i
+        break
+
+wsLength = None
+for i in range(15, 0, -1):
+    if (len(image[0, :]) % i) == 0:
+        wsLength = i
+        break
+
+shader_file = open('./tfm.wgsl')
+shader_string = (shader_file.read()
+                 .replace('wsReceptor', f'{wsReceptor}')
+                 .replace('wsDepth', f'{wsDepth}')
+                 .replace('wsLength', f'{wsLength}'))
+shader_file.close()
+
+shader_module = device.create_shader_module(code=shader_string)
+
+time = np.float32(np.load('teste4_results/time_grid.npy') * 1e-6)
+dx = np.float32(0.6e-3)
+time_sample = np.float32((time[1] - time[0]).item())
+acoustic_speed = np.float32(6420.)
+delays = np.zeros_like(fmc, dtype=np.int32)
+
+depth_length = np.int32(len(image[:, 0]))
+transducer_length = np.int32(len(image[0, :]))
+
+wgsl_data = {
+    'time': time,
+    'dx': dx,
+    'time_sample': time_sample,
+    'acoustic_speed': acoustic_speed,
+    'delays': delays,
+    'image': image,
+    'fmc': fmc,
+    'depth_length': depth_length,
+    'transducer_length': transducer_length,
+    'gate_start_frames': np.float32(500),
+}
+
+shader_lines = list(shader_string.split('\n'))
+buffers = create_buffers(wgsl_data, shader_lines)
+
+compute_create_delays = create_compute_pipeline("create_delays")
+compute_sim_tfm = create_compute_pipeline("sim_tfm")
+
+command_encoder = device.create_command_encoder()
+compute_pass = command_encoder.begin_compute_pass()
+
+for index, bind_group in enumerate(bind_groups):
+    compute_pass.set_bind_group(index, bind_group, [], 0, 999999)
+
+compute_pass.set_pipeline(compute_create_delays)
+compute_pass.dispatch_workgroups(transducer_length // wsReceptor, depth_length // wsDepth, transducer_length // wsLength)
+
+compute_pass.set_pipeline(compute_sim_tfm)
+compute_pass.dispatch_workgroups(depth_length // wsDepth, transducer_length // wsLength)
+
+compute_pass.end()
+device.queue.submit([command_encoder.finish()])
+
+""" READ BUFFERS """
+image = (np.asarray(device.queue.read_buffer(buffers['b5']).cast("f"))
+         .reshape(transducer_length, depth_length).transpose())
+
+plt.figure()
+plt.imshow(np.abs(image), aspect='auto')
+plt.colorbar()
+plt.show()

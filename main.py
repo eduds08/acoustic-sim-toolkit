@@ -1,35 +1,36 @@
+import numpy as np
+
 from AcousticSimulation import AcousticSimulation
 from TimeReversal import TimeReversal
 from ReverseTimeMigration import ReverseTimeMigration
+from aux_utils import convert_image_to_matrix
+import matplotlib.pyplot as plt
+
+velocity_map, receptor_z, receptor_x = convert_image_to_matrix('map.png')
 
 simulation_config = {
     'dt': 1e-3,
-    'c': 1500,
+    'c': velocity_map,
     'dz': 3,
     'dx': 3,
-    'grid_size_z': 1000,
-    'grid_size_x': 1000,
-    'total_time': 1500,
-    'animation_step': 10,
+    'grid_size_z': len(velocity_map[:, 0]),
+    'grid_size_x': len(velocity_map[0, :]),
+    'total_time': 3500,
+    'animation_step': 100,
 }
 
 ac_config = {
-    'source_z': 400,
-    'source_x': 500,
-    'mode': 'linear_reflector',  # 'no_reflector', 'punctual_reflector', 'linear_reflector'
-    'number_of_reflectors': 100,  # Ignore if 'mode' == 'punctual_reflector' or 'mode' == 'no_reflector'
-    'reflector_z': [500 - i for i in range(50)] + [501 + i for i in range(50)],  # Ignore if 'mode' == 'no_reflector'
-    'reflector_x': [650 - i for i in range(50)] + [649 - i for i in range(50)],  # Ignore if 'mode' == 'no_reflector'
-    'reflector_c': 0,
-    'number_of_receptors': 5,
-    'receptor_z': [400 + (50 * i) for i in range(5)],
-    'receptor_x': [500 for _ in range(5)],
+    'source_z': receptor_z[0],
+    'source_x': receptor_x[0],
+    'number_of_receptors': len(receptor_z),
+    'receptor_z': receptor_z,
+    'receptor_x': receptor_x,
 }
 
 tr_config = {
-    'min_time': 550,
-    'max_time': 1250,
-    'padding_zeros': 550,
+    'min_time': 0,
+    'max_time': simulation_config['total_time'],
+    'padding_zeros': 0,
 }
 
 simulation_modes = {
@@ -37,22 +38,30 @@ simulation_modes = {
     1: 'TimeReversal',
     2: 'ReverseTimeMigration',
     3: 'TimeReversal + ReverseTimeMigration',
+    4: 'Full',
 }
 
-mode = 0
+mode = 4
 
 if simulation_modes[mode] == 'AcousticSimulation':
     ac_sim = AcousticSimulation(simulation_config, ac_config)
-    ac_sim.run(create_animation=True, plt_kwargs={})
+    ac_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
 elif simulation_modes[mode] == 'TimeReversal':
     tr_sim = TimeReversal(simulation_config, tr_config)
-    tr_sim.run(create_animation=True, plt_kwargs={})
+    tr_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
 elif simulation_modes[mode] == 'ReverseTimeMigration':
     rtm_sim = ReverseTimeMigration(**simulation_config)
-    rtm_sim.run(create_animation=True, plt_kwargs={})
+    rtm_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
 elif simulation_modes[mode] == 'TimeReversal + ReverseTimeMigration':
     tr_sim = TimeReversal(simulation_config, tr_config)
     tr_sim.run(create_animation=True, plt_kwargs={})
 
     rtm_sim = ReverseTimeMigration(**simulation_config)
     rtm_sim.run(create_animation=True, plt_kwargs={})
+elif simulation_modes[mode] == 'Full':
+    ac_sim = AcousticSimulation(simulation_config, ac_config)
+    ac_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
+    tr_sim = TimeReversal(simulation_config, tr_config)
+    tr_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
+    rtm_sim = ReverseTimeMigration(**simulation_config)
+    rtm_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})

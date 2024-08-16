@@ -10,25 +10,10 @@ class ReverseTimeMigration(WebGPUConfig):
         super().__init__(**simulation_config)
 
         self.shader_file = './reverse_time_migration.wgsl'
+        self.setup_folders()
 
-        self.folder = './ReverseTimeMigration'
-        self.last_frame_rtm_folder = f'{self.folder}/last_frame_rtm'
-        self.animation_folder = f'{self.folder}/animation'
-
-        os.makedirs(self.folder, exist_ok=True)
-        os.makedirs(self.last_frame_rtm_folder, exist_ok=True)
-        os.makedirs(self.animation_folder, exist_ok=True)
-
-        clear_folder(self.last_frame_rtm_folder)
-
-        self.tr_sim_folder = './TimeReversal'
-        self.tr_last_frames_folder = f'{self.tr_sim_folder}/last_frames'
-
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_source_folder = f'{self.ac_sim_folder}/source_setup'
-
+        # Total time
         self.rtm_total_time = np.load(f'{self.tr_sim_folder}/tr_total_time.npy')
-
         print(f'Total time (RTM): {self.rtm_total_time}')
 
         # Source setup
@@ -36,6 +21,7 @@ class ReverseTimeMigration(WebGPUConfig):
         self.source_x = np.load(f'{self.ac_source_folder}/source_x.npy')
         self.source = np.load(f'{self.ac_source_folder}/source.npy')
 
+        # Up-going pressure fields (Reversed Time Reversal)
         self.p_future_reversed_tr = np.zeros(self.grid_size_shape, dtype=np.float32)
         self.p_present_reversed_tr = np.load(f'{self.tr_last_frames_folder}/tr_{self.rtm_total_time - 2}.npy')
         self.p_past_reversed_tr = np.load(f'{self.tr_last_frames_folder}/tr_{self.rtm_total_time - 1}.npy')
@@ -57,15 +43,11 @@ class ReverseTimeMigration(WebGPUConfig):
                 self.dz,
                 self.dx,
                 self.dt,
-                self.c,
             ],
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool, plt_kwargs=None):
-        if plt_kwargs is None:
-            plt_kwargs = {}
-
+    def run(self, create_animation: bool, **plt_kwargs):
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
         shader_file.close()
@@ -84,6 +66,7 @@ class ReverseTimeMigration(WebGPUConfig):
             'p_present_reversed_tr': self.p_present_reversed_tr,
             'p_past_reversed_tr': self.p_past_reversed_tr,
             'lap_reversed_tr': self.lap_reversed_tr,
+            'c': self.c,
         }
 
         shader_lines = list(shader_string.split('\n'))
@@ -134,25 +117,36 @@ class ReverseTimeMigration(WebGPUConfig):
             current_product = self.p_future * self.p_future_reversed_tr
             accumulated_product += current_product
 
+            # Save last frame as .npy and .png
             if i == self.rtm_total_time - 1:
                 save_imshow(
                     data=accumulated_product,
                     title=f'RTM - Last Frame',
                     path=f'{self.last_frame_rtm_folder}/plot_{i}.png',
                     scatter_kwargs={},
-                    plt_kwargs=plt_kwargs,
-                    plt_grid=False,
-                    plt_colorbar=True,
+                    **plt_kwargs,
                 )
-                np.save(f'{self.last_frame_rtm_folder}/frame_{i}.npy', accumulated_product)
+                np.save(f'{self.last_frame_rtm_folder}/frame_{i}_{self.source_z}.npy', accumulated_product)
 
             if i % self.animation_step == 0:
                 if create_animation:
                     save_imshow_4_subplots(
-                        nw_kwargs={'data': self.p_future_reversed_tr, 'title': 'Up-going wavefields', 'plt_grid': True},
-                        ne_kwargs={'data': current_product, 'title': 'Product (Down * Up)', 'plt_grid': False},
-                        sw_kwargs={'data': self.p_future, 'title': 'Down-going wavefields', 'plt_grid': True},
-                        se_kwargs={'data': accumulated_product, 'title': 'Accumulated product', 'plt_grid': False},
+                        nw_kwargs={
+                            'data': self.p_future_reversed_tr,
+                            'title': 'Up-going wavefields'
+                        },
+                        ne_kwargs={
+                            'data': current_product,
+                            'title': 'Product (Down * Up)'
+                        },
+                        sw_kwargs={
+                            'data': self.p_future,
+                            'title': 'Down-going wavefields'
+                        },
+                        se_kwargs={
+                            'data': accumulated_product,
+                            'title': 'Accumulated product'
+                        },
                         path=f'{self.animation_folder}/plot_{i}.png',
                     )
 
@@ -163,3 +157,20 @@ class ReverseTimeMigration(WebGPUConfig):
 
         if create_animation:
             create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.rtm_total_time, self.animation_step)
+
+    def setup_folders(self):
+        self.folder = './ReverseTimeMigration'
+        self.last_frame_rtm_folder = f'{self.folder}/last_frame_rtm'
+        self.animation_folder = f'{self.folder}/animation'
+
+        os.makedirs(self.folder, exist_ok=True)
+        os.makedirs(self.last_frame_rtm_folder, exist_ok=True)
+        os.makedirs(self.animation_folder, exist_ok=True)
+
+        clear_folder(self.last_frame_rtm_folder)
+
+        self.tr_sim_folder = './TimeReversal'
+        self.tr_last_frames_folder = f'{self.tr_sim_folder}/last_frames'
+
+        self.ac_sim_folder = './AcousticSimulation'
+        self.ac_source_folder = f'{self.ac_sim_folder}/source_setup'
