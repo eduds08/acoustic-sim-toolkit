@@ -3,6 +3,7 @@ from AcousticSimulation import AcousticSimulation
 from TimeReversal import TimeReversal
 from ReverseTimeMigration import ReverseTimeMigration
 from plt_utils import plot_imshow, save_imshow
+from TFM import TFM
 
 '''
 folder,
@@ -48,7 +49,7 @@ panther_tests = {
 }
 
 # Choose test to simulate
-selected_test = 'teste1'
+selected_test = 'teste5'
 
 selected_test = panther_tests[selected_test]
 recorded_pressure_bscan = np.load(f'{selected_test[0]}/ascan_data.npy')[:, selected_test[4], :, 0].transpose()
@@ -104,9 +105,10 @@ simulation_modes = {
     2: 'TimeReversal + ReverseTimeMigration',
     3: 'Plot last RTM frame',
     4: 'Plot l2-norm TR',
+    5: 'TFM',
 }
 
-mode = 4
+mode = 5
 
 if simulation_modes[mode] == 'TimeReversal':
     tr_sim = TimeReversal(simulation_config, tr_config)
@@ -191,3 +193,7 @@ elif simulation_modes[mode] == 'Plot l2-norm TR':
         interpolation='nearest',
         cmap='bwr',
     )
+
+elif simulation_modes[mode] == 'TFM':
+    tfm = TFM(selected_test)
+    tfm.run()

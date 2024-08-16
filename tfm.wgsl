@@ -5,7 +5,7 @@ var<storage,read> time: f32;
 var<storage,read> dx: f32;
 
 @group(0) @binding(2)
-var<storage,read> time_sample: f32;
+var<storage,read> sample_time: f32;
 
 @group(0) @binding(3)
 var<storage,read> acoustic_speed: f32;
@@ -60,7 +60,7 @@ fn create_delays(@builtin(global_invocation_id) index: vec3<u32>) {
     distance = pow(f32(depth) * dx, 2.) + pow(f32(length - receptor) * dx, 2.);
     distance = pow(distance, 0.5);
 
-    delays[zxy(depth, length, receptor)] = i32(round((distance / acoustic_speed / time_sample) - (gate_start_frames / 2.)));
+    delays[zxy(depth, length, receptor)] = i32(round((distance / acoustic_speed / sample_time) - (gate_start_frames / 2.)));
 }
 
 @compute
