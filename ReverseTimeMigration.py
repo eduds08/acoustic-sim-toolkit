@@ -6,8 +6,10 @@ from os_utils import clear_folder, create_ffmpeg_animation
 
 
 class ReverseTimeMigration(WebGPUConfig):
-    def __init__(self, **simulation_config):
+    def __init__(self, simulation_config, rtm_config):
         super().__init__(**simulation_config)
+
+        rtm_config = {**rtm_config}
 
         self.shader_file = './reverse_time_migration.wgsl'
         self.setup_folders()
@@ -17,9 +19,14 @@ class ReverseTimeMigration(WebGPUConfig):
         print(f'Total time (RTM): {self.rtm_total_time}')
 
         # Source setup
-        self.source_z = np.load(f'{self.ac_source_folder}/source_z.npy')
-        self.source_x = np.load(f'{self.ac_source_folder}/source_x.npy')
-        self.source = np.load(f'{self.ac_source_folder}/source.npy')
+        self.source_z = np.int32(np.load(f'{self.tr_sim_folder}/source_z.npy'))
+        self.source_x = np.int32(np.load(f'{self.tr_sim_folder}/source_x.npy'))
+        self.source = np.float32(rtm_config['source'])
+
+        # Reflectors setup
+        self.number_of_reflectors = np.load(f'{self.tr_sim_folder}/number_of_reflectors.npy')
+        self.reflector_z = np.load(f'{self.tr_sim_folder}/reflector_z.npy')
+        self.reflector_x = np.load(f'{self.tr_sim_folder}/reflector_x.npy')
 
         # Up-going pressure fields (Reversed Time Reversal)
         self.p_future_reversed_tr = np.zeros(self.grid_size_shape, dtype=np.float32)
@@ -47,7 +54,7 @@ class ReverseTimeMigration(WebGPUConfig):
             dtype=np.float32
         )
 
-    def run(self, create_animation: bool, **plt_kwargs):
+    def run(self, create_animation: bool):
         shader_file = open(self.shader_file)
         shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
         shader_file.close()
@@ -81,6 +88,12 @@ class ReverseTimeMigration(WebGPUConfig):
             clear_folder(self.animation_folder)
 
         accumulated_product = np.zeros_like(self.p_future)
+
+        scatter_kwargs = {
+            'number_of_reflectors': self.number_of_reflectors,
+            'reflector_z': self.reflector_z,
+            'reflector_x': self.reflector_x,
+        }
 
         for i in range(self.rtm_total_time):
             command_encoder = self.device.create_command_encoder()
@@ -117,18 +130,16 @@ class ReverseTimeMigration(WebGPUConfig):
             current_product = self.p_future * self.p_future_reversed_tr
             accumulated_product += current_product
 
-            # Save last frame as .npy and .png
+            # Save last frame as .npy
             if i == self.rtm_total_time - 1:
-                save_imshow(
-                    data=accumulated_product,
-                    title=f'RTM - Last Frame',
-                    path=f'{self.last_frame_rtm_folder}/plot_{i}.png',
-                    scatter_kwargs={},
-                    **plt_kwargs,
-                )
                 np.save(f'{self.last_frame_rtm_folder}/frame_{i}_{self.source_z}.npy', accumulated_product)
 
             if i % self.animation_step == 0:
+                # if i == 2900:
+                #     print(np.amax(current_product))
+                #     print(np.amin(current_product))
+                #     print(np.amax(accumulated_product))
+                #     print(np.amin(accumulated_product))
                 if create_animation:
                     save_imshow_4_subplots(
                         nw_kwargs={
@@ -148,6 +159,7 @@ class ReverseTimeMigration(WebGPUConfig):
                             'title': 'Accumulated product'
                         },
                         path=f'{self.animation_folder}/plot_{i}.png',
+                        scatter_kwargs=scatter_kwargs,
                     )
 
             if i % 100 == 0:
@@ -167,10 +179,8 @@ class ReverseTimeMigration(WebGPUConfig):
         os.makedirs(self.last_frame_rtm_folder, exist_ok=True)
         os.makedirs(self.animation_folder, exist_ok=True)
 
+        clear_folder(self.folder)
         clear_folder(self.last_frame_rtm_folder)
 
         self.tr_sim_folder = './TimeReversal'
         self.tr_last_frames_folder = f'{self.tr_sim_folder}/last_frames'
-
-        self.ac_sim_folder = './AcousticSimulation'
-        self.ac_source_folder = f'{self.ac_sim_folder}/source_setup'
