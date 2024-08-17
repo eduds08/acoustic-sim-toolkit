@@ -1,6 +1,6 @@
 import numpy as np
 from WebGpuHandler import WebGpuHandler
-from plt_utils import plot_imshow
+from plt_utils import plot_imshow, save_imshow
 
 
 class TFM:
@@ -84,9 +84,30 @@ class TFM:
         image = (np.asarray(self.gpuHandler.device.queue.read_buffer(buffers['b5']).cast("f"))
                  .reshape(self.transducer_length, self.depth_length).transpose())
 
-        plot_imshow(
-            data=np.abs(image[:int((self.test[2] / self.dx) * 2), :]),
-            title='TFM',
-            scatter_kwargs={},
-            aspect='auto'
-        )
+        if self.test[0] == './panther/teste3_results':
+            plot_imshow(
+                data=np.abs(image),
+                title='TFM',
+                scatter_kwargs={},
+                aspect='auto'
+            )
+        else:
+            # plot_imshow(
+            #     data=np.abs(image[:int((self.test[2] / self.dx) * 2), :]),
+            #     title='TFM',
+            #     scatter_kwargs={},
+            #     aspect='auto'
+            # )
+            plot_imshow(
+                data=np.abs(image[:300]),
+                title='TFM',
+                scatter_kwargs={},
+                aspect='auto'
+            )
+            save_imshow(
+                data=np.abs(image[:300]),
+                title='TFM',
+                path='./tfm_teste6.png',
+                scatter_kwargs={},
+                aspect='auto'
+            )
