@@ -19,24 +19,11 @@ class TimeReversal(WebGPUConfig):
 
         # Receptors setup
         self.number_of_receptors = len(self.recorded_pressure_bscan[:, 0])
-        self.receptor_z = []
-        for rp in range(0, self.number_of_receptors):
-            self.receptor_z.append((0.6e-3 * rp) / self.dz)
-        self.receptor_z = (np.int32(np.asarray(self.receptor_z))
-                           + np.int32((self.grid_size_z - self.receptor_z[-1]) / 2))
-        self.receptor_x = np.full(self.number_of_receptors, 2, dtype=np.int32)
 
-        np.save(f'{self.folder}/source_z.npy', self.receptor_z[tr_config['emitter_index']])
-        np.save(f'{self.folder}/source_x.npy', self.receptor_x[tr_config['emitter_index']])
-
-        # Reflectors setup
-        self.number_of_reflectors = np.int32(1)
-        self.reflector_z = np.array([self.receptor_z[tr_config['emitter_index']]], dtype=np.int32)
-        self.reflector_x = np.array([tr_config['distance_from_reflector'] / self.dx], dtype=np.int32)
-
-        np.save(f'{self.folder}/number_of_reflectors.npy', self.number_of_reflectors)
-        np.save(f'{self.folder}/reflector_z.npy', self.reflector_z)
-        np.save(f'{self.folder}/reflector_x.npy', self.reflector_x)
+        self.receptor_z = np.int32(np.asarray(
+            [2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 5.00, 7.50, 10.00, 12.50]) * 1e2 / self.dz)
+        self.receptor_x = np.int32(np.asarray(
+            [2.50, 6.50, 10.50, 14.50, 18.50, 22.50, 22.50, 22.50, 22.50, 22.50]) * 1e2 / self.dx)
 
         # Slice
         self.min_time = np.int32(tr_config['min_time'])
@@ -131,9 +118,6 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
             clear_folder(self.animation_folder)
 
         scatter_kwargs = {
-            'number_of_reflectors': self.number_of_reflectors,
-            'reflector_z': self.reflector_z,
-            'reflector_x': self.reflector_x,
             'number_of_receptors': self.number_of_receptors,
             'receptor_z': self.receptor_z,
             'receptor_x': self.receptor_x,
