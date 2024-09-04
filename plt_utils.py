@@ -35,24 +35,19 @@ def save_imshow_4_subplots(nw_kwargs, ne_kwargs, sw_kwargs, se_kwargs, path, sca
 
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
-    # 380.6784
-    # -679.7538
-    # 7890.017
-    # -5287.6826
-
-    axs[0, 0].imshow(nw_kwargs['data'], cmap='bwr', interpolation='nearest')
+    axs[0, 0].imshow(nw_kwargs['data'], cmap='bwr')
     axs[0, 0].set_title(nw_kwargs['title'])
     axs[0, 0].grid()
 
-    axs[0, 1].imshow(ne_kwargs['data'], cmap='bwr', interpolation='nearest')
+    axs[0, 1].imshow(ne_kwargs['data'], cmap='bwr')
     axs[0, 1].set_title(ne_kwargs['title'])
     axs[0, 1].grid()
 
-    axs[1, 0].imshow(sw_kwargs['data'], cmap='bwr', interpolation='nearest')
+    axs[1, 0].imshow(sw_kwargs['data'], cmap='bwr')
     axs[1, 0].set_title(sw_kwargs['title'])
     axs[1, 0].grid()
 
-    axs[1, 1].imshow(se_kwargs['data'], cmap='bwr', interpolation='nearest', vmax=95000, vmin=-95000)
+    axs[1, 1].imshow(se_kwargs['data'], cmap='bwr')
     axs[1, 1].set_title(se_kwargs['title'])
     axs[1, 1].grid()
 

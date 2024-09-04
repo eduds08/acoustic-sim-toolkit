@@ -11,8 +11,11 @@ class ReverseTimeMigration(WebGPUConfig):
 
         rtm_config = {**rtm_config}
 
+        self.emitter_index = rtm_config['emitter_index']
+
         self.shader_file = './reverse_time_migration.wgsl'
         self.setup_folders()
+        self.rtm_npys_folder = rtm_config['test'] + '/rtm_npys'
 
         # Total time
         self.rtm_total_time = np.load(f'{self.tr_sim_folder}/tr_total_time.npy')
@@ -132,14 +135,9 @@ class ReverseTimeMigration(WebGPUConfig):
 
             # Save last frame as .npy
             if i == self.rtm_total_time - 1:
-                np.save(f'{self.last_frame_rtm_folder}/frame_{i}_{self.source_z}.npy', accumulated_product)
+                np.save(f'{self.rtm_npys_folder}/frame_{self.emitter_index}.npy', accumulated_product)
 
             if i % self.animation_step == 0:
-                # if i == 2900:
-                #     print(np.amax(current_product))
-                #     print(np.amin(current_product))
-                #     print(np.amax(accumulated_product))
-                #     print(np.amin(accumulated_product))
                 if create_animation:
                     save_imshow_4_subplots(
                         nw_kwargs={
@@ -178,6 +176,7 @@ class ReverseTimeMigration(WebGPUConfig):
         os.makedirs(self.folder, exist_ok=True)
         os.makedirs(self.last_frame_rtm_folder, exist_ok=True)
         os.makedirs(self.animation_folder, exist_ok=True)
+        os.makedirs(self.rtm_npys_folder, exist_ok=True)
 
         clear_folder(self.folder)
         clear_folder(self.last_frame_rtm_folder)
