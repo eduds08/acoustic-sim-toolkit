@@ -14,8 +14,8 @@ class ReverseTimeMigration(WebGPUConfig):
         self.emitter_index = rtm_config['emitter_index']
 
         self.shader_file = './reverse_time_migration.wgsl'
-        self.setup_folders()
         self.rtm_npys_folder = rtm_config['test'] + '/rtm_npys'
+        self.setup_folders()
 
         # Total time
         self.rtm_total_time = np.load(f'{self.tr_sim_folder}/tr_total_time.npy')
