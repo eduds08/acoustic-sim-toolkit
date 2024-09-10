@@ -98,7 +98,7 @@ class ReverseTimeMigration(WebGPUConfig):
             'reflector_x': self.reflector_x,
         }
 
-        for i in range(self.rtm_total_time):
+        for i in range(1300):
             command_encoder = self.device.create_command_encoder()
             compute_pass = command_encoder.begin_compute_pass()
 
@@ -134,7 +134,7 @@ class ReverseTimeMigration(WebGPUConfig):
             accumulated_product += current_product
 
             # Save last frame as .npy
-            if i == self.rtm_total_time - 1:
+            if i == 1300 - 1:
                 np.save(f'{self.rtm_npys_folder}/frame_{self.emitter_index}.npy', accumulated_product)
 
             if i % self.animation_step == 0:
@@ -166,7 +166,7 @@ class ReverseTimeMigration(WebGPUConfig):
         print('Reverse Time Migration finished.')
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', self.rtm_total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'rtm.mp4', 1300, self.animation_step)
 
     def setup_folders(self):
         self.folder = './ReverseTimeMigration'

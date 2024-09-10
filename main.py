@@ -5,6 +5,7 @@ from ReverseTimeMigration import ReverseTimeMigration
 from plt_utils import plot_imshow, save_imshow
 from TFM import TFM
 import matplotlib.pyplot as plt
+from os_utils import create_ffmpeg_animation
 
 '''
 folder,
@@ -18,42 +19,49 @@ panther_tests = {
         3.414e-2,
         1500.,
         (2100, 2100, 3.0e-5, 3.0e-5),
+        0.6e-3,
     ],
     'teste2': [
         './panther/teste2_results',
         1.044e-2,
         1500.,
         (1750, 2100, 2.5e-5, 3.0e-5),
+        0.6e-3,
     ],
     'teste3': [
         './panther/teste3_results',
         1.04e-2,
         1500.,
         (2000, 2000, 6e-5, 6e-5),
+        0.6e-3,
     ],
     'teste4': [
         './panther/teste4_results',
         1.9e-2,
         6420.,
         (1250, 1800, 12.5e-5, 18.0e-5),
+        0.6e-3,
     ],
     'teste5': [
         './panther/teste5_results',
         3.903e-2,
         6420.,
         (1250, 1800, 12.5e-5, 18.0e-5),
+        0.6e-3,
     ],
     'teste6': [
         './panther/teste6_results',
         7.344e-2,
         6420.,
         (1250, 1800, 12.5e-5, 18.0e-5),
+        0.6e-3,
     ],
     'teste7': [
         './panther/teste7_results',
         0,
         6420.,
         (1250, 1800, 12.5e-5, 18.0e-5),
+        0.5e-3,
     ],
 }
 
@@ -68,7 +76,7 @@ simulation_modes = {
 mode = 2
 
 # Choose test to simulate
-selected_test = 'teste1'
+selected_test = 'teste7'
 
 # Setup fmc bscan and time array
 selected_test = panther_tests[selected_test]
@@ -79,10 +87,13 @@ for c in range(64):
     time = np.load(f'{selected_test[0]}/time_grid.npy')
     sample_time = np.float32((time[1] - time[0]).item())
 
-    # plot_imshow(np.abs(recorded_pressure_bscan), 'Raw BScan', {}, aspect='auto')
-
-    # Panther source needed for RTM
-    source = np.float32(np.load(f'./panther/source_for_rtm.npy'))
+    # Source needed for RTM
+    x = np.linspace(0, 5000, 5000)
+    sigma = 10
+    mu = 50
+    amplitude = 1
+    source = amplitude * np.exp(-(x - mu) ** 2 / (2 * sigma ** 2))
+    source[x < mu - 3 * sigma] = 0
 
     # Add zeros, according to gate_start, to the beginning of array
     gate_start_value = np.float32(0)
@@ -97,8 +108,9 @@ for c in range(64):
 
     recorded_pressure_bscan = np.hstack((padding_zeros, recorded_pressure_bscan), dtype=np.float32)
 
-    # recorded_pressure_bscan[:, 6400:] = np.float32(0)
-    plot_imshow(np.abs(recorded_pressure_bscan), 'Raw BScan', {}, aspect='auto')
+    # recorded_pressure_bscan[:, :550] = np.float32(0)
+    # recorded_pressure_bscan[:, 1700:] = np.float32(0)
+    plot_imshow(np.abs(recorded_pressure_bscan.transpose()), 'Raw BScan', {}, aspect='auto')
 
     simulation_config = {
         'dt': sample_time * 1e-6,
@@ -118,9 +130,17 @@ for c in range(64):
         'min_time': 0,
         'max_time': simulation_config['total_time'],
         'padding_zeros': 0,
+        'recs_dist': selected_test[4],
     }
 
-    source = np.pad(source, ((0, tr_config['max_time'] - len(source)), (0, 0)), mode='constant', constant_values=0)
+    if len(source) < simulation_config['total_time']:
+        source = np.pad(source, (0, tr_config['max_time'] - len(source)), 'constant')
+    elif len(source) > simulation_config['total_time']:
+        source = source[:simulation_config['total_time']]
+
+    # plt.figure()
+    # plt.plot(source)
+    # plt.show()
 
     rtm_config = {
         'source': source,

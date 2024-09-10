@@ -17,11 +17,13 @@ class TimeReversal(WebGPUConfig):
 
         self.setup_folders()
 
+        recs_dist = tr_config['recs_dist']
+
         # Receptors setup
         self.number_of_receptors = len(self.recorded_pressure_bscan[:, 0])
         self.receptor_z = []
-        for rp in range(0, self.number_of_receptors):
-            self.receptor_z.append((0.6e-3 * rp) / self.dz)
+        for rp in range(self.number_of_receptors):
+            self.receptor_z.append((recs_dist * rp) / self.dz)
         self.receptor_z = (np.int32(np.asarray(self.receptor_z))
                            + np.int32((self.grid_size_z - self.receptor_z[-1]) / 2))
         self.receptor_x = np.full(self.number_of_receptors, 2, dtype=np.int32)
