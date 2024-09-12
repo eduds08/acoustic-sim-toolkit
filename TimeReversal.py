@@ -28,18 +28,6 @@ class TimeReversal(WebGPUConfig):
                            + np.int32((self.grid_size_z - self.receptor_z[-1]) / 2))
         self.receptor_x = np.full(self.number_of_receptors, 2, dtype=np.int32)
 
-        np.save(f'{self.folder}/source_z.npy', self.receptor_z[tr_config['emitter_index']])
-        np.save(f'{self.folder}/source_x.npy', self.receptor_x[tr_config['emitter_index']])
-
-        # Reflectors setup
-        self.number_of_reflectors = np.int32(1)
-        self.reflector_z = np.array([self.receptor_z[tr_config['emitter_index']]], dtype=np.int32)
-        self.reflector_x = np.array([tr_config['distance_from_reflector'] / self.dx], dtype=np.int32)
-
-        np.save(f'{self.folder}/number_of_reflectors.npy', self.number_of_reflectors)
-        np.save(f'{self.folder}/reflector_z.npy', self.reflector_z)
-        np.save(f'{self.folder}/reflector_x.npy', self.reflector_x)
-
         # Slice
         self.min_time = np.int32(tr_config['min_time'])
         self.max_time = np.int32(tr_config['max_time'])
@@ -47,8 +35,6 @@ class TimeReversal(WebGPUConfig):
 
         # Total time
         self.tr_total_time = np.int32(self.padding_zeros + (self.max_time - self.min_time))
-        np.save(f'{self.folder}/tr_total_time.npy', self.tr_total_time)
-        print(f'Total time (TR): {self.tr_total_time}')
 
         # Recorded pressure on receptors
         self.reversed_pressure = []
@@ -133,9 +119,6 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
             clear_folder(self.animation_folder)
 
         scatter_kwargs = {
-            'number_of_reflectors': self.number_of_reflectors,
-            'reflector_z': self.reflector_z,
-            'reflector_x': self.reflector_x,
             'number_of_receptors': self.number_of_receptors,
             'receptor_z': self.receptor_z,
             'receptor_x': self.receptor_x,
@@ -170,10 +153,6 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
 
             l2_norm += np.square(self.p_future)
 
-            # Save last 2 frames (for RTM)
-            if i == self.tr_total_time - 1 or i == self.tr_total_time - 2:
-                np.save(f'{self.last_frames_folder}/tr_{i}', self.p_future)
-
             if i % self.animation_step == 0:
                 if create_animation:
                     save_imshow(
@@ -194,16 +173,13 @@ var<storage,read> reversed_pressure_{i}: array<f32>;\n\n'''
         np.save(f'{self.folder}/l2_norm.npy', l2_norm)
 
         if create_animation:
-            create_ffmpeg_animation(self.animation_folder, 'tr.mp4', self.tr_total_time, self.animation_step)
+            create_ffmpeg_animation(self.animation_folder, 'a.mp4', self.tr_total_time, self.animation_step)
 
     def setup_folders(self):
         self.folder = './TimeReversal'
-        self.last_frames_folder = f'{self.folder}/last_frames'
         self.animation_folder = f'{self.folder}/animation'
 
         os.makedirs(self.folder, exist_ok=True)
-        os.makedirs(self.last_frames_folder, exist_ok=True)
         os.makedirs(self.animation_folder, exist_ok=True)
 
         clear_folder(self.folder)
-        clear_folder(self.last_frames_folder)
