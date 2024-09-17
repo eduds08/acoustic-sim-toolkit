@@ -1,16 +1,15 @@
 import numpy as np
-
 from AcousticSimulation import AcousticSimulation
 from TimeReversal import TimeReversal
 from ReverseTimeMigration import ReverseTimeMigration
 from aux_utils import convert_image_to_matrix
 import matplotlib.pyplot as plt
 
-velocity_map, receptor_z, receptor_x = convert_image_to_matrix('ball.png')
+velocity_map, receptor_z, receptor_x = convert_image_to_matrix('500x300.png')
 
-receptor_z = np.linspace(5, 95, 64, dtype=np.int32)
-receptor_x = np.full(64, 5, dtype=np.int32)
-print(receptor_z)
+receptor_x = np.linspace(350, 550, 64, dtype=np.int32)
+receptor_z = np.full(64, 50, dtype=np.int32)
+print(receptor_x)
 simulation_config = {
     'dt': 1e-4,
     'c': velocity_map,
@@ -18,7 +17,7 @@ simulation_config = {
     'dx': 3,
     'grid_size_z': len(velocity_map[:, 0]),
     'grid_size_x': len(velocity_map[0, :]),
-    'total_time': 3500,
+    'total_time': 6000,
     'animation_step': 100,
 }
 

@@ -103,25 +103,24 @@ class AcousticSimulation(WebGPUConfig):
             offsets = (np.concatenate((np.arange(-accuracy // 2, 0), np.arange(accuracy // 2))) + 0.5).astype(
                 np.float32)
             coeff_diff = findiff.coefficients(deriv=1, offsets=list(offsets))["coefficients"][
-                         round(accuracy / 2):].astype(
-                np.float32)
+                         round(accuracy / 2):].astype(np.float32)
 
             shifted_u = u.swapaxes(0, dim)
             derivative_result = np.zeros((shifted_u.shape[0] + 1, shifted_u.shape[1]), dtype=np.float32)
 
-            for i, coeff in enumerate(coeff_diff):
-                derivative_result[:-i - 1, ...] += coeff * shifted_u[i:, ...]
-                derivative_result[i + 1:, ...] -= coeff * shifted_u[:shifted_u.shape[0] - i, ...]
+            for idx, coeff in enumerate(coeff_diff):
+                derivative_result[:-idx - 1, ...] += coeff * shifted_u[idx:, ...]
+                derivative_result[idx + 1:, ...] -= coeff * shifted_u[:shifted_u.shape[0] - idx, ...]
 
             return derivative_result[boundary_factor:derivative_result.shape[0] + boundary_factor - 1, ...].swapaxes(0,
                                                                                                                      dim)
 
-        absorption_layer_size = 50
+        absorption_layer_size = 40
         damping_coefficient = 3e6
 
         x, z = np.meshgrid(np.arange(self.grid_size_x, dtype=np.float32), np.arange(self.grid_size_z, dtype=np.float32))
 
-
+        # Aqui escolhemos as bordas que queremos absorver
         is_x_absorption = (x > self.grid_size_x - absorption_layer_size) | (x < absorption_layer_size)
         is_z_absorption = (z > self.grid_size_z - absorption_layer_size) | (z < absorption_layer_size)
 
@@ -129,48 +128,65 @@ class AcousticSimulation(WebGPUConfig):
             -(damping_coefficient * (np.arange(absorption_layer_size) / absorption_layer_size) ** 2) * self.dt).astype(
             np.float32)
 
-        psi_x = np.zeros(is_x_absorption.sum(), dtype=np.float32)
-        psi_z = np.zeros(is_z_absorption.sum(), dtype=np.float32)
-        phi_x = np.zeros(is_x_absorption.sum(), dtype=np.float32)
-        phi_z = np.zeros(is_z_absorption.sum(), dtype=np.float32)
+        psi_x = np.zeros_like(is_x_absorption, dtype=np.float32)
+        psi_z = np.zeros_like(is_z_absorption, dtype=np.float32)
+        phi_x = np.zeros_like(is_x_absorption, dtype=np.float32)
+        phi_z = np.zeros_like(is_z_absorption, dtype=np.float32)
 
         absorption_x = np.ones((self.grid_size_z, self.grid_size_x), dtype=np.float32)
         absorption_z = np.ones((self.grid_size_z, self.grid_size_x), dtype=np.float32)
 
-
+        # Aqui também escolhems as bordas que queremos absorver
         absorption_x[:, :absorption_layer_size] = absorption_coefficient[::-1]
         absorption_x[:, -absorption_layer_size:] = absorption_coefficient
         absorption_z[:absorption_layer_size, :] = absorption_coefficient[:, np.newaxis][::-1]
         absorption_z[-absorption_layer_size:, :] = absorption_coefficient[:, np.newaxis]
 
-        absorption_x = absorption_x[is_x_absorption]
-        absorption_z = absorption_z[is_z_absorption]
-
         if create_animation:
             clear_folder(self.animation_folder)
 
+        # # GUI (animação)
+        # vminmax = 1e-4
+        # vscale = 1
+        # surface_format = pg.QtGui.QSurfaceFormat()
+        # surface_format.setSwapInterval(0)
+        # pg.QtGui.QSurfaceFormat.setDefaultFormat(surface_format)
+        # app = pg.QtWidgets.QApplication([])
+        # raw_image_widget = RawImageGLWidget()
+        # raw_image_widget.setWindowFlags(pg.QtCore.Qt.WindowType.FramelessWindowHint)
+        # raw_image_widget.resize(vscale * self.grid_size_x, vscale * self.grid_size_z)
+        # raw_image_widget.show()
+        # colormap = plt.get_cmap("bwr")
+        # norm = matplotlib.colors.Normalize(vmin=-vminmax, vmax=vminmax)
 
         #SIMULATION#
         for i in range(self.total_time):
             z_diff_1 = derivative(dim=0, u=self.p_present, boundary_factor=1)
             x_diff_1 = derivative(dim=1, u=self.p_present, boundary_factor=1)
 
-            phi_z = absorption_z * phi_z + (absorption_z - 1) * z_diff_1[is_z_absorption]
-            phi_x = absorption_x * phi_x + (absorption_x - 1) * x_diff_1[is_x_absorption]
+            phi_z[is_z_absorption] = absorption_z[is_z_absorption] * phi_z[is_z_absorption] + (
+                        absorption_z[is_z_absorption] - 1) * z_diff_1[is_z_absorption]
+            phi_x[is_x_absorption] = absorption_x[is_x_absorption] * phi_x[is_x_absorption] + (
+                        absorption_x[is_x_absorption] - 1) * x_diff_1[is_x_absorption]
 
-            z_diff_1[is_z_absorption] += phi_z
-            x_diff_1[is_x_absorption] += phi_x
+            z_diff_1[is_z_absorption] += phi_z[is_z_absorption]
+            x_diff_1[is_x_absorption] += phi_x[is_x_absorption]
 
             z_diff_2 = derivative(dim=0, u=z_diff_1, boundary_factor=0)
             x_diff_2 = derivative(dim=1, u=x_diff_1, boundary_factor=0)
 
-            psi_z = absorption_z * psi_z + (absorption_z - 1) * z_diff_2[is_z_absorption]
-            psi_x = absorption_x * psi_x + (absorption_x - 1) * x_diff_2[is_x_absorption]
+            psi_z[is_z_absorption] = absorption_z[is_z_absorption] * psi_z[is_z_absorption] + (
+                        absorption_z[is_z_absorption] - 1) * z_diff_2[is_z_absorption]
+            psi_x[is_x_absorption] = absorption_x[is_x_absorption] * psi_x[is_x_absorption] + (
+                        absorption_x[is_x_absorption] - 1) * x_diff_2[is_x_absorption]
 
-            z_diff_2[is_z_absorption] += psi_z
-            x_diff_2[is_x_absorption] += psi_x
+            z_diff_2[is_z_absorption] += psi_z[is_z_absorption]
+            x_diff_2[is_x_absorption] += psi_x[is_x_absorption]
 
-            self.p_future = (self.c ** 2) * (self.dt ** 2 / self.dz ** 2) * (z_diff_2 + x_diff_2)
+            z_diff_2 /= (self.dz ** 2)
+            x_diff_2 /= (self.dx ** 2)
+
+            self.p_future = (self.c ** 2) * (z_diff_2 + x_diff_2) * (self.dt ** 2)
 
             self.p_future += 2 * self.p_present - self.p_past
 
@@ -203,6 +219,12 @@ class AcousticSimulation(WebGPUConfig):
             if i % 100 == 0:
                 print(f'Acoustic Simulation - i={i}')
 
+            # # Atualiza a GUI
+            # if not i % 3:
+            #     raw_image_widget.setImage(colormap(norm(self.p_future.T)), levels=[0, 1])
+            #     app.processEvents()
+            #     plt.pause(1e-12)
+
         print('Acoustic Simulation finished.')
 
         # Save receptors' recorded pressure
@@ -211,6 +233,7 @@ class AcousticSimulation(WebGPUConfig):
 
         if create_animation:
             create_ffmpeg_animation(self.animation_folder, 'ac_sim.mp4', self.total_time, self.animation_step)
+
 
     def setup_folders(self):
         self.folder = './AcousticSimulation'
