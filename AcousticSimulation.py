@@ -3,7 +3,11 @@ import os
 from WebGPUConfig import WebGPUConfig
 from plt_utils import save_imshow
 from os_utils import clear_folder, create_ffmpeg_animation
-
+import matplotlib.pyplot as plt
+import matplotlib
+import findiff
+import pyqtgraph as pg
+from pyqtgraph.widgets.RawImageWidget import RawImageWidget, RawImageGLWidget
 
 class AcousticSimulation(WebGPUConfig):
     def __init__(self, simulation_config, acoustic_config):
@@ -70,11 +74,11 @@ class AcousticSimulation(WebGPUConfig):
         )
 
     def run(self, create_animation: bool, **plt_kwargs):
-        shader_file = open(self.shader_file)
-        shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
-        shader_file.close()
-
-        self.shader_module = self.device.create_shader_module(code=shader_string)
+        # shader_file = open(self.shader_file)
+        # shader_string = shader_file.read().replace('wsz', f'{self.wsz}').replace('wsx', f'{self.wsx}')
+        # shader_file.close()
+        #
+        # self.shader_module = self.device.create_shader_module(code=shader_string)
 
         wgsl_data = {
             'infoI32': self.info_int,
@@ -87,40 +91,93 @@ class AcousticSimulation(WebGPUConfig):
             'c': self.c,
         }
 
-        shader_lines = list(shader_string.split('\n'))
-        buffers = self.create_buffers(wgsl_data, shader_lines)
+        # shader_lines = list(shader_string.split('\n'))
+        # buffers = self.create_buffers(wgsl_data, shader_lines)
+        #
+        # compute_lap = self.create_compute_pipeline("laplacian_5_operator")
+        # compute_sim = self.create_compute_pipeline("sim")
+        # compute_incr = self.create_compute_pipeline("incr_time")
 
-        compute_lap = self.create_compute_pipeline("laplacian_5_operator")
-        compute_sim = self.create_compute_pipeline("sim")
-        compute_incr = self.create_compute_pipeline("incr_time")
+        def derivative(dim, u, boundary_factor):
+            accuracy = 8
+            offsets = (np.concatenate((np.arange(-accuracy // 2, 0), np.arange(accuracy // 2))) + 0.5).astype(
+                np.float32)
+            coeff_diff = findiff.coefficients(deriv=1, offsets=list(offsets))["coefficients"][
+                         round(accuracy / 2):].astype(
+                np.float32)
+
+            shifted_u = u.swapaxes(0, dim)
+            derivative_result = np.zeros((shifted_u.shape[0] + 1, shifted_u.shape[1]), dtype=np.float32)
+
+            for i, coeff in enumerate(coeff_diff):
+                derivative_result[:-i - 1, ...] += coeff * shifted_u[i:, ...]
+                derivative_result[i + 1:, ...] -= coeff * shifted_u[:shifted_u.shape[0] - i, ...]
+
+            return derivative_result[boundary_factor:derivative_result.shape[0] + boundary_factor - 1, ...].swapaxes(0,
+                                                                                                                     dim)
+
+        absorption_layer_size = 50
+        damping_coefficient = 3e6
+
+        x, z = np.meshgrid(np.arange(self.grid_size_x, dtype=np.float32), np.arange(self.grid_size_z, dtype=np.float32))
+
+
+        is_x_absorption = (x > self.grid_size_x - absorption_layer_size) | (x < absorption_layer_size)
+        is_z_absorption = (z > self.grid_size_z - absorption_layer_size) | (z < absorption_layer_size)
+
+        absorption_coefficient = np.exp(
+            -(damping_coefficient * (np.arange(absorption_layer_size) / absorption_layer_size) ** 2) * self.dt).astype(
+            np.float32)
+
+        psi_x = np.zeros(is_x_absorption.sum(), dtype=np.float32)
+        psi_z = np.zeros(is_z_absorption.sum(), dtype=np.float32)
+        phi_x = np.zeros(is_x_absorption.sum(), dtype=np.float32)
+        phi_z = np.zeros(is_z_absorption.sum(), dtype=np.float32)
+
+        absorption_x = np.ones((self.grid_size_z, self.grid_size_x), dtype=np.float32)
+        absorption_z = np.ones((self.grid_size_z, self.grid_size_x), dtype=np.float32)
+
+
+        absorption_x[:, :absorption_layer_size] = absorption_coefficient[::-1]
+        absorption_x[:, -absorption_layer_size:] = absorption_coefficient
+        absorption_z[:absorption_layer_size, :] = absorption_coefficient[:, np.newaxis][::-1]
+        absorption_z[-absorption_layer_size:, :] = absorption_coefficient[:, np.newaxis]
+
+        absorption_x = absorption_x[is_x_absorption]
+        absorption_z = absorption_z[is_z_absorption]
 
         if create_animation:
             clear_folder(self.animation_folder)
 
+
+        #SIMULATION#
         for i in range(self.total_time):
-            command_encoder = self.device.create_command_encoder()
-            compute_pass = command_encoder.begin_compute_pass()
+            z_diff_1 = derivative(dim=0, u=self.p_present, boundary_factor=1)
+            x_diff_1 = derivative(dim=1, u=self.p_present, boundary_factor=1)
 
-            for index, bind_group in enumerate(self.bind_groups):
-                compute_pass.set_bind_group(index, bind_group, [], 0, 999999)
+            phi_z = absorption_z * phi_z + (absorption_z - 1) * z_diff_1[is_z_absorption]
+            phi_x = absorption_x * phi_x + (absorption_x - 1) * x_diff_1[is_x_absorption]
 
-            compute_pass.set_pipeline(compute_lap)
-            compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
-                                             self.grid_size_x // self.wsx)
+            z_diff_1[is_z_absorption] += phi_z
+            x_diff_1[is_x_absorption] += phi_x
 
-            compute_pass.set_pipeline(compute_sim)
-            compute_pass.dispatch_workgroups(self.grid_size_z // self.wsz,
-                                             self.grid_size_x // self.wsx)
+            z_diff_2 = derivative(dim=0, u=z_diff_1, boundary_factor=0)
+            x_diff_2 = derivative(dim=1, u=x_diff_1, boundary_factor=0)
 
-            compute_pass.set_pipeline(compute_incr)
-            compute_pass.dispatch_workgroups(1)
+            psi_z = absorption_z * psi_z + (absorption_z - 1) * z_diff_2[is_z_absorption]
+            psi_x = absorption_x * psi_x + (absorption_x - 1) * x_diff_2[is_x_absorption]
 
-            compute_pass.end()
-            self.device.queue.submit([command_encoder.finish()])
+            z_diff_2[is_z_absorption] += psi_z
+            x_diff_2[is_x_absorption] += psi_x
 
-            """ READ BUFFERS """
-            self.p_future = (np.asarray(self.device.queue.read_buffer(buffers['b3']).cast("f"))
-                             .reshape(self.grid_size_shape))
+            self.p_future = (self.c ** 2) * (self.dt ** 2 / self.dz ** 2) * (z_diff_2 + x_diff_2)
+
+            self.p_future += 2 * self.p_present - self.p_past
+
+            self.p_past = self.p_present
+            self.p_present = self.p_future
+
+            self.p_future[self.source_z, self.source_x] += self.source[i]
 
             # Record pressure on recepetors
             for j in range(self.number_of_receptors):

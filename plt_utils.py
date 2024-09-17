@@ -8,15 +8,15 @@ def save_imshow(data, title, path, scatter_kwargs, **plt_kwargs):
     plt.imshow(data, **plt_kwargs)
     plt.colorbar()
 
-    # Plot reflectors
-    if scatter_kwargs.get('number_of_reflectors') is not None:
-        for i in range(scatter_kwargs['number_of_reflectors']):
-            plt.scatter(scatter_kwargs['reflector_x'][i], scatter_kwargs['reflector_z'][i], s=0.05, color='black')
+        ## # Plot reflectors
+       # if scatter_kwargs.get('number_of_reflectors') is not None:
+           # for i in range(scatter_kwargs['number_of_reflectors']):
+               # plt.scatter(scatter_kwargs['reflector_x'][i], scatter_kwargs['reflector_z'][i], s=0.05, color='black')
 
-    # Plot receptors
-    if scatter_kwargs.get('number_of_receptors') is not None:
-        for i in range(scatter_kwargs['number_of_receptors']):
-            plt.scatter(scatter_kwargs['receptor_x'][i], scatter_kwargs['receptor_z'][i], s=0.05, color='white')
+        # Plot receptors
+      #  if scatter_kwargs.get('number_of_receptors') is not None:
+            #for i in range(scatter_kwargs['number_of_receptors']):
+                #plt.scatter(scatter_kwargs['receptor_x'][i], scatter_kwargs['receptor_z'][i], s=0.05, color='white')
 
     plt.title(title)
     plt.grid()

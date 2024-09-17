@@ -6,10 +6,13 @@ from ReverseTimeMigration import ReverseTimeMigration
 from aux_utils import convert_image_to_matrix
 import matplotlib.pyplot as plt
 
-velocity_map, receptor_z, receptor_x = convert_image_to_matrix('map.png')
+velocity_map, receptor_z, receptor_x = convert_image_to_matrix('ball.png')
 
+receptor_z = np.linspace(5, 95, 64, dtype=np.int32)
+receptor_x = np.full(64, 5, dtype=np.int32)
+print(receptor_z)
 simulation_config = {
-    'dt': 1e-3,
+    'dt': 1e-4,
     'c': velocity_map,
     'dz': 3,
     'dx': 3,
@@ -20,7 +23,7 @@ simulation_config = {
 }
 
 ac_config = {
-    'source_z': receptor_z[0],
+    'source_z': receptor_z[31],
     'source_x': receptor_x[0],
     'number_of_receptors': len(receptor_z),
     'receptor_z': receptor_z,
@@ -41,11 +44,11 @@ simulation_modes = {
     4: 'Full',
 }
 
-mode = 4
+mode = 0
 
 if simulation_modes[mode] == 'AcousticSimulation':
     ac_sim = AcousticSimulation(simulation_config, ac_config)
-    ac_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
+    ac_sim.run(create_animation=True, cmap='bwr')
 elif simulation_modes[mode] == 'TimeReversal':
     tr_sim = TimeReversal(simulation_config, tr_config)
     tr_sim.run(create_animation=True, plt_kwargs={'cmap': 'bwr'})
